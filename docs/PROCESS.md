@@ -15,8 +15,12 @@ process is live. Approved by the full review panel; see the Phase 0 PR.
 - Required status checks (strict): `CI / process-validation`, `CI / security-scan`.
   Backend/frontend jobs join the required set when those directories land.
 - Require conversation resolution before merging (no unresolved threads).
-- Require 1 approving review minimum; department approvals below are enforced
-  by the team lead at merge time (GitHub cannot require named personas).
+- Required approving review count: **0 while the repo has a single collaborator**
+  (GitHub blocks self-approval, so any nonzero value would make merging
+  impossible). The department/persona approvals below are recorded as labeled
+  PR comments, and the repository owner gives the explicit final merge approval
+  (in chat). When a second human collaborator joins, raise this to 1 and make
+  formal GitHub approvals mandatory.
 - Enforce for administrators. No force pushes, no deletions.
 
 ## 3. The PR loop
@@ -33,7 +37,12 @@ process is live. Approved by the full review panel; see the Phase 0 PR.
 
 ## 4. Required approvals
 
-Every PR needs all five departments:
+Every PR needs all five departments. The personas are named review roles, not
+separate GitHub accounts: each records findings and approval as a labeled PR
+comment (GitHub does not allow the PR author to approve their own PR, and
+there are no other collaborators yet). The team lead verifies the full set
+before merge.
+
 - Backend — Hulk
 - Frontend — Spider-Man
 - QA — Daredevil
