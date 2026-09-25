@@ -62,6 +62,20 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                 .build();
     }
 
+    /**
+     * Client IP for rate limiting. On Render the app sits behind Render's
+     * proxy, so the leftmost X-Forwarded-For entry is the practical client
+     * identifier (Render appends the true client IP; {@code getRemoteAddr()}
+     * would be the proxy IP shared by everyone).
+     *
+     * <p>Known limitation (accepted, Phase 3 review): XFF is client-spoofable,
+     * so a deliberate attacker can rotate values to get fresh buckets — but
+     * each bucket is still capped at the per-minute limit, and the bucket map
+     * only grows with distinct IPs (entries are tiny; ~1M distinct spoofed
+     * IPs would be needed to threaten the 512 MB container). This is a
+     * courtesy anti-abuse control on a public read-only API, not a security
+     * boundary.
+     */
     private static String clientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {

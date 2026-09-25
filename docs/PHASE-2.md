@@ -93,7 +93,7 @@ into the Spring Boot jar (Phase 3) · deep-linkable routes · any paid service.
    (implementation branch: `feat/phase-2-frontend`).
 2. `npm ci && npm test -- --run && npm run build` green locally — see evidence below.
 3. PR opened with the template; CI runs; persona review loop; findings fixed.
-4. Owner's explicit merge approval → squash merge. (Pending — not approved.)
+4. Owner's explicit merge approval received 2026-09-25 ("Merge and start next phase") → squash merge completed as commit `2cb0fb1`. Feature branch deleted after verification. Phase 2 closed.
 
 ### Implementation evidence
 
@@ -159,4 +159,5 @@ covers `node_modules/`, `dist/`, and tsc byproducts.
   audit endpoint). CI runs `npm audit --audit-level=high` on GitHub runners;
   dependency versions chosen are current stable releases of maintained
   packages.
+
 

@@ -126,7 +126,8 @@ on: push → build → test → deploy
   4. Set up Java 21 → Maven build (spring-kafka, spring-data-jpa)
   5. Automated QA suite (acceptance criteria §6 — fail the pipeline on violation),
      incl. Kafka integration tests (embedded Kafka / Testcontainers)
-  6. Deploy to Render (free tier) via deploy hook
+  6. Deploy to Render (free tier): automatic via the Blueprint's
+     autoDeployTrigger on push to main (no deploy hook needed)
 
 Local dev: `npm run dev` (Vite, port 5173) proxies /api → localhost:8080;
 Spring Boot runs the API + Kafka consumer as usual.

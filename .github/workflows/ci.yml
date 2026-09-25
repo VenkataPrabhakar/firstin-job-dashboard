@@ -58,6 +58,19 @@ jobs:
       - name: All workflow actions pinned by SHA
         run: bash .github/scripts/check-pins.sh
 
+  pipeline-scripts:
+    name: pipeline scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: extraction script tests
+        run: bash .github/scripts/test_extract.sh
+
+      - name: ingest schedule still documented
+        run: |
+          grep -q "cron: '5 13 \* \* \*'" .github/workflows/daily-ingest.yml
+
   backend:
     name: backend build and test
     needs: changes

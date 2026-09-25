@@ -1,0 +1,39 @@
+# Render Blueprint — FirstIn job dashboard (Phase 3).
+# Free plan, $0/month. Deploy via Render Dashboard → New → Blueprint →
+# select the firstin-job-dashboard repo.
+#
+# What this runs: ONE web service. Render has no native Java runtime, so the
+# service builds from the Dockerfile at the repo root (multi-stage: Maven
+# builds the Spring Boot jar and bundles the React SPA into it, then a slim
+# JRE image runs it). The single container serves the UI (/) and the API
+# (/api/**), and the embedded Kafka consumer drains job-leads.raw.
+#
+# Secrets are sync:false: Render prompts for them on first deploy and stores
+# them encrypted. Nothing secret is committed to this repo.
+services:
+  - type: web
+    name: firstin-dashboard
+    runtime: docker
+    plan: free
+    # Builds ./Dockerfile by default (repo root); the field is omitted on
+    # purpose — the path is only needed for monorepos.
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_SASL_USERNAME
+        sync: false
+      - key: KAFKA_SASL_PASSWORD
+        sync: false
+      # KAFKA_SASL_MECHANISM defaults to SCRAM-SHA-256 and the security
+      # protocol defaults to SASL_SSL when SASL credentials are set — both
+      # match Upstash, so they are only needed to override the defaults.

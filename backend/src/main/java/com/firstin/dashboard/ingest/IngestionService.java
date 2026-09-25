@@ -43,6 +43,7 @@ public class IngestionService {
     private final DlqPublisher dlqPublisher;
     private final ObjectMapper objectMapper;
     private final Validator validator;
+    private final IngestRunRecorder runRecorder;
 
     private final AtomicLong stored = new AtomicLong();
     private final AtomicLong duplicates = new AtomicLong();
@@ -52,12 +53,14 @@ public class IngestionService {
                             JobSourceRepository sources,
                             DlqPublisher dlqPublisher,
                             ObjectMapper objectMapper,
-                            Validator validator) {
+                            Validator validator,
+                            IngestRunRecorder runRecorder) {
         this.postings = postings;
         this.sources = sources;
         this.dlqPublisher = dlqPublisher;
         this.objectMapper = objectMapper;
         this.validator = validator;
+        this.runRecorder = runRecorder;
     }
 
     /**
@@ -69,11 +72,23 @@ public class IngestionService {
      */
     @Transactional
     public void ingestRaw(byte[] raw, String originalTopic) {
+        ingestRaw(raw, originalTopic, null);
+    }
+
+    /**
+     * Same as {@link #ingestRaw(byte[], String)}, but records the outcome
+     * against the pipeline run when the record carries a {@code run_id}
+     * header. Records without a run id are plain ingestion and never touch
+     * the run table.
+     */
+    @Transactional
+    public void ingestRaw(byte[] raw, String originalTopic, String runId) {
         final LeadEvent event;
         try {
             event = objectMapper.readValue(raw, LeadEvent.class);
         } catch (Exception e) {
             dlqPublisher.publish(raw, originalTopic, "deserialization failed: " + shortMessage(e));
+            recordOutcome(runId, IngestOutcome.DLQ);
             return;
         }
         Set<ConstraintViolation<LeadEvent>> violations = validator.validate(event);
@@ -83,6 +98,7 @@ public class IngestionService {
                     .sorted()
                     .collect(Collectors.joining("; "));
             dlqPublisher.publish(raw, originalTopic, "validation failed: " + reasons);
+            recordOutcome(runId, IngestOutcome.DLQ);
             return;
         }
         final Engagement engagement;
@@ -90,18 +106,25 @@ public class IngestionService {
             engagement = Engagement.parse(event.getEngagement());
         } catch (IllegalArgumentException e) {
             dlqPublisher.publish(raw, originalTopic, "unknown engagement: " + event.getEngagement());
+            recordOutcome(runId, IngestOutcome.DLQ);
             return;
         }
-        ingest(event, engagement);
+        recordOutcome(runId, ingest(event, engagement));
+    }
+
+    private void recordOutcome(String runId, IngestOutcome outcome) {
+        if (runId != null) {
+            runRecorder.record(runId, outcome);
+        }
     }
 
     @Transactional
-    public void ingest(LeadEvent event, Engagement engagement) {
+    public IngestOutcome ingest(LeadEvent event, Engagement engagement) {
         // Policy: only reported:true records may enter the database.
         if (!Boolean.TRUE.equals(event.getReported())) {
             rejected.incrementAndGet();
             log.info("Rejected unreported lead (policy): title present, reported=false");
-            return;
+            return IngestOutcome.REJECTED;
         }
 
         // Policy: restricted-sponsorship records are excluded at ingestion.
@@ -112,7 +135,7 @@ public class IngestionService {
         if (visa.status() == VisaStatus.RESTRICTED) {
             rejected.incrementAndGet();
             log.info("Rejected restricted-sponsorship lead (policy): {}", visa.reason());
-            return;
+            return IngestOutcome.REJECTED;
         }
 
         String id = TextNormalizer.stableId(event.getTitle(), event.getCompany(), event.getLocation());
@@ -123,7 +146,7 @@ public class IngestionService {
             addSourceRow(posting, event);
             duplicates.incrementAndGet();
             log.debug("Re-seen posting {} (first_seen unchanged)", id);
-            return;
+            return IngestOutcome.DUPLICATE;
         }
 
         JobPosting posting = new JobPosting(id);
@@ -155,6 +178,7 @@ public class IngestionService {
         postings.save(posting);
         addSourceRow(posting, event);
         stored.incrementAndGet();
+        return IngestOutcome.STORED;
     }
 
     private void addSourceRow(JobPosting posting, LeadEvent event) {
