@@ -15,7 +15,7 @@ public final class VisaAnalyzer {
             "no sponsorship", "will not sponsor", "without sponsorship",
             "citizens only", "us citizens only", "u.s. citizens only",
             "usc only", "gc only", "green card only", "h4-ead only",
-            "no h1", "no h-1b", "no opt", "no cpt", "e-verified only");
+            "no h1", "no h-1b", "no opt", "no cpt");
 
     private static final List<String> CONFIRMED_PHRASES = List.of(
             "sponsorship", "sponsor h1", "sponsor h-1b", "h1b", "h-1b",
