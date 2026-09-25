@@ -17,9 +17,11 @@ history instead of `max(first_seen)`.
 ## Design decisions
 
 - **Jar bundling:** `frontend-maven-plugin` runs `npm ci && npm run build`
-  during the Maven build and copies the output into
-  `backend/src/main/resources/static`. Spring serves the SPA; `/api/**` stays
-  the API. One artifact, one Render web service, $0.
+  during the Maven build and the build copies `frontend/dist` into
+  `backend/target/classes/static` (packaged in the jar as
+  `BOOT-INF/classes/static`; the prebuilt copy under
+  `backend/src/main/resources/static` serves local dev). Spring serves the
+  SPA; `/api/**` stays the API. One artifact, one Render web service, $0.
 - **`ingest_runs` table** (new, Phase 1 deferred it here):
   `run_id` (unique, e.g. `2026-09-26`), `started_at`, `completed_at`,
   `published`, `stored`, `dlq`, `rejected`, `status`. The daily workflow sends
@@ -53,14 +55,16 @@ history instead of `max(first_seen)`.
   until then the pipeline runs on whatever ledgers are present, and
   `workflow_dispatch` accepts a manual run. Phase 3 ships the pipeline and
   the sync contract, not the sync itself.
-- **Render (user's clicks, documented):** `render.yaml` blueprint (web service:
-  Java 21, `./mvnw -DskipTests package` then `java -jar`, free plan) plus
-  `docs/RENDER.md` — exact step-by-step: create account → New → Blueprint →
-  connect repo → add env vars (`SPRING_DATASOURCE_URL` with `?sslmode=require`,
-  `DB_USERNAME`, `DB_PASSWORD`, `KAFKA_*`) → deploy. The deploy hook URL goes
-  to GitHub Secrets as `RENDER_DEPLOY_HOOK` so merges to `main` redeploy.
-  The owner creates the Render/Supabase/Upstash accounts and pastes the
-  secrets — that part cannot be automated.
+- **Render (user's clicks, documented):** `render.yaml` blueprint (Docker
+  runtime — Render has no native Java runtime — building the repo-root
+  `Dockerfile`: Maven/Temurin 21 build stage, Temurin 21 JRE runtime stage,
+  free plan) plus `docs/RENDER.md` — exact step-by-step: create account →
+  New → Blueprint → connect repo → add env vars (`SPRING_DATASOURCE_URL` with
+  `?sslmode=require`, `DB_USERNAME`, `DB_PASSWORD`, `KAFKA_*`) → deploy. The
+  deploy hook URL goes to GitHub Secrets as `RENDER_DEPLOY_HOOK`; the daily
+  workflow calls it to wake the (sleeping) free service before the consumer
+  drains each batch. The owner creates the Render/Supabase/Upstash accounts
+  and pastes the secrets — that part cannot be automated.
 - **Secrets:** GitHub Secrets for the workflow (`KAFKA_REST_URL`,
   `KAFKA_REST_USERNAME`, `KAFKA_REST_PASSWORD`, `SUPABASE_DB_URL` read-only for
   verify, `RENDER_DEPLOY_HOOK`); Render env vars for the app. Nothing secret
@@ -68,8 +72,10 @@ history instead of `max(first_seen)`.
 
 ## Security implementation
 
-- Publisher uses Upstash REST credentials scoped to produce on
-  `job-leads.raw` only (least privilege).
+- Publisher credentials are stored as GitHub Secrets and the workflow uses
+  them only to produce to `job-leads.raw` via Upstash's REST API (least
+  privilege by usage — Upstash's free credentials are not produce-scoped, so
+  the scoping is by the workflow's behavior, not the credential).
 - Verify step uses a **read-only** Postgres role.
 - No new public endpoints; the consumer path is unchanged from Phase 1.
 - Secrets flow only through GitHub Secrets / Render env — the security-scan
@@ -82,9 +88,13 @@ history instead of `max(first_seen)`.
 - `LastPullTest`: API returns latest completed run; falls back to
   `max(first_seen)` with no runs.
 - Jar bundling: CI build asserts `index.html` + hashed assets exist under
-  `target/classes/static`.
-- Pipeline dry-run: workflow's extract/validate/publish steps tested against
-  fixture ledgers with a mocked Kafka endpoint (counts and logging asserted).
+  `target/classes/static` (`StaticBundleTest`).
+- Pipeline: `test_extract.sh` covers extract/validate against fixture ledgers
+  (12 cases: validity filters, malformed files, dedupe, empty ledgers). The
+  publish step is not unit-tested (it needs a live Kafka endpoint); the
+  verify step's counter logic is exercised in CI via the deterministic
+  fixtures, and end-to-end behavior is verified by the first manual
+  `workflow_dispatch` run against the real services.
 - QA criteria §6: daily regression (criterion 9) is now exercised by the
   pipeline itself.
 
@@ -106,6 +116,73 @@ by the verify step; a viewer is a later phase if wanted) · any paid service.
 5. After merge: owner follows docs/RENDER.md (accounts + secrets + blueprint),
    then confirms the live URL; assistant verifies the deploy.
 
-### Implementation evidence (to be filled)
+### Implementation evidence
 
-### Defects found during the build and their fixes (to be filled)
+Verified 2026-09-25 on the `feat/phase-3-deploy` branch (fresh reconstruction;
+the earlier `/tmp` implementation was lost to VM replacement and rebuilt):
+
+- **Backend** (`./mvnw -B verify`): **56 tests, 0 failures, 0 errors**
+  (DlqTest 2, FreshnessTest 4, IngestRunRecorderTest 5, IngestionServiceTest 10,
+  ListingApiTest 12, PayParserTest 13, RateLimitTest 1, StaticBundleTest 1,
+  ProdDataSourceConfigTest 3, LastPullTest 5). BUILD SUCCESS.
+- **Frontend** (`npm ci && npm run build && npm test -- --watchAll=false`):
+  **31 tests passed** (App.test.tsx 13, format.test.ts 18); Vite build emits
+  `dist/index.html` + hashed `dist/assets/*`.
+- **Pipeline scripts** (`bash .github/scripts/test_extract.sh`): **12 passed,
+  0 failed** (validity filters, malformed files, cross-ledger dedupe, empty
+  ledgers). Fixture run: 4 valid records → 3 unique after dedupe, broken
+  ledger logged and skipped.
+- **Pin check** (`bash .github/scripts/check-pins.sh`): all workflow actions
+  SHA-pinned.
+- **Jar**: single executable `backend/target/firstin-dashboard-0.1.0.jar`
+  containing `BOOT-INF/classes/static/index.html` and hashed
+  `BOOT-INF/classes/static/assets/index-*.js` / `index-*.css`
+  (copied from `frontend/dist` into `backend/target/classes/static` during
+  the build; `StaticBundleTest` asserts this in CI).
+- **Upstash REST format** re-verified against the official Producer API docs:
+  `POST /produce/$TOPIC` accepts `{"value": ..., "headers": [{"key", "value"}]}`,
+  single or array — exactly what `daily-ingest.yml` sends.
+- **render.yaml** fields validated against the official Blueprint spec
+  (`render.com/docs/blueprint-spec`, 2026-09-25): `type: web`,
+  `runtime: docker`, `plan: free`, `healthCheckPath`, `autoDeployTrigger:
+  commit`, `sync: false` placeholder env vars. `dockerfilePath` omitted on
+  purpose — the spec defaults it to `./Dockerfile` (repo root).
+
+### Defects found during the build and their fixes
+
+1. **Wrong bundling destination in the design doc.** The doc said the SPA is
+   copied into `backend/src/main/resources/static`; the build actually copies
+   `frontend/dist` into `backend/target/classes/static` (packaged as
+   `BOOT-INF/classes/static`). Doc corrected.
+2. **Invalid Render runtime.** The first `render.yaml` used `runtime: java`;
+   Render's Blueprint spec has no Java runtime (only node/python/ruby/go/
+   elixir/rust + special-case `docker`/`image`/`static`). Switched to
+   `runtime: docker` with a repo-root multi-stage `Dockerfile`
+   (Maven/Temurin 21 build → Temurin 21 JRE runtime; tags
+   `maven:3.9-eclipse-temurin-21` and `eclipse-temurin:21-jre` confirmed to
+   exist via the Docker Hub API; `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75.0`
+   for the 512 MB free tier; `PORT` honored at startup).
+3. **Unverifiable security claim.** "Upstash REST credentials scoped to
+   produce-only" could not be confirmed in Upstash's docs, so the doc and
+   runbook now say the credentials live in GitHub Secrets and the workflow
+   uses them only to produce to `job-leads.raw` (least privilege by usage).
+4. **Run-counter semantics needed a decision.** `published` counts every
+   record the consumer receives for a run (a replayed record counts again);
+   `stored` counts only newly persisted postings; storage idempotency comes
+   from stable posting IDs, not from the counters. The alternative
+   (deduping `published` by record identity) would need unbounded per-record
+   state — rejected as over-engineering. Documented in
+   `IngestRunRecorder`'s javadoc and covered by
+   `IngestRunRecorderTest.sameRunIdTwiceIsOneRowWithCorrectCounters`
+   (`published=4, stored=2` after a full replay).
+5. **Unhandled-exception path (deliberate, no code change).** A
+   `RuntimeException` escaping `ingestRaw` (e.g. DB or DLQ outage) retries
+   and then stops the consumer; the run never completes and the workflow's
+   30-minute wait fails loudly. Skip-and-continue was rejected: silently
+   undercounting would violate the "never silent" rule. Documented in
+   `docs/RENDER.md` troubleshooting.
+6. **Sandbox build environment (not a product defect).** The replacement VM
+   had no JDK and a stale Maven proxy setup; fixed locally with OpenJDK 21,
+   the egress CA in cacerts, per-session proxy credentials in
+   `~/.m2/settings.xml`, and a `/root/.m2/settings.xml` symlink (the shell
+   runs as root, so Java's `user.home` is `/root`). None of this is committed.

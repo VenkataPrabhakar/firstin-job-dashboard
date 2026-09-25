@@ -1,5 +1,6 @@
 package com.firstin.dashboard;
 
+import com.firstin.dashboard.repo.IngestRunRepository;
 import com.firstin.dashboard.repo.JobPostingRepository;
 import com.firstin.dashboard.repo.JobSourceRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,9 +27,13 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected JobSourceRepository sources;
 
+    @Autowired
+    protected IngestRunRepository runs;
+
     @BeforeEach
     void cleanDb() {
         sources.deleteAll();
         postings.deleteAll();
+        runs.deleteAll();
     }
 }

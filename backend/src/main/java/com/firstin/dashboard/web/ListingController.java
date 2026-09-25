@@ -2,6 +2,8 @@ package com.firstin.dashboard.web;
 
 import com.firstin.dashboard.model.JobPosting;
 import com.firstin.dashboard.model.JobSource;
+import com.firstin.dashboard.model.RunStatus;
+import com.firstin.dashboard.repo.IngestRunRepository;
 import com.firstin.dashboard.repo.JobPostingRepository;
 import com.firstin.dashboard.repo.JobSourceRepository;
 import jakarta.validation.constraints.Pattern;
@@ -12,6 +14,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Sort;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,10 +35,13 @@ public class ListingController {
 
     private final JobPostingRepository postings;
     private final JobSourceRepository sources;
+    private final IngestRunRepository runs;
 
-    public ListingController(JobPostingRepository postings, JobSourceRepository sources) {
+    public ListingController(JobPostingRepository postings, JobSourceRepository sources,
+                             IngestRunRepository runs) {
         this.postings = postings;
         this.sources = sources;
+        this.runs = runs;
     }
 
     @GetMapping("/health")
@@ -70,8 +76,13 @@ public class ListingController {
                 cb.greaterThanOrEqualTo(root.get("firstSeen"), startOfDay));
     }
 
-    /** lastPull without a scheduler: max(first_seen); null when the DB is empty. */
+    /** lastPull is run history: latest COMPLETED run; else max(first_seen); null when empty. */
     Instant lastPull() {
+        Optional<Instant> completed = runs.findFirstByStatusOrderByCompletedAtDesc(RunStatus.COMPLETED)
+                .map(run -> run.getCompletedAt());
+        if (completed.isPresent()) {
+            return completed.get();
+        }
         return postings.findAll(Sort.by(Sort.Direction.DESC, "firstSeen")).stream()
                 .findFirst()
                 .map(JobPosting::getFirstSeen)

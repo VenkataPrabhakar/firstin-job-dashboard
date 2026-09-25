@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Node.js downloaded by frontend-maven-plugin during the backend build
+node/
+
 # Build output
 dist/
 dist-ssr/

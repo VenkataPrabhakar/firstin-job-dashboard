@@ -1,0 +1,162 @@
+name: Daily ingest pipeline
+
+# Phase 3: runs the job-lead pipeline once a day. Extracts the agent ledgers,
+# publishes valid records to Upstash Kafka (topic job-leads.raw, header
+# run_id=<UTC date>), then verifies the consumer stored them.
+#
+# Schedule: 13:05 UTC daily = 08:05 America/Chicago in summer (CDT, UTC-5),
+# 07:05 in winter (CST, UTC-6). GitHub cron is UTC-fixed and does not shift
+# with US daylight saving time — this is documented, not a bug.
+#
+# There is no HTTP ingestion endpoint by design (threat model): records enter
+# only through the Kafka consumer in the deployed service. The Render deploy
+# hook below wakes/restarts the (free-tier, spins down after 15 min idle)
+# service so the consumer drains the batch.
+#
+# If the pipeline secrets are not configured yet, the job prints
+# "pipeline not configured — see docs/RENDER.md" and ends successfully
+# without doing anything.
+
+on:
+  schedule:
+    - cron: '5 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-ingest
+  cancel-in-progress: false
+
+env:
+  KAFKA_REST_URL: ${{ secrets.KAFKA_REST_URL }}
+  KAFKA_REST_USERNAME: ${{ secrets.KAFKA_REST_USERNAME }}
+  KAFKA_REST_PASSWORD: ${{ secrets.KAFKA_REST_PASSWORD }}
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+  RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+
+jobs:
+  ingest:
+    name: extract, publish, verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Check pipeline secrets
+        id: secrets
+        run: |
+          for var in KAFKA_REST_URL KAFKA_REST_USERNAME KAFKA_REST_PASSWORD SUPABASE_DB_URL RENDER_DEPLOY_HOOK; do
+            if [ -z "${!var:-}" ]; then
+              echo "pipeline not configured — see docs/RENDER.md"
+              echo "configured=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "all pipeline secrets present"
+
+      - name: Install postgresql-client
+        if: steps.secrets.outputs.configured == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Extract and validate ledgers
+        if: steps.secrets.outputs.configured == 'true'
+        id: extract
+        run: |
+          RUN_ID=$(date -u +%F)
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          bash .github/scripts/extract_records.sh ledgers records.jsonl
+          PUBLISHED=$(wc -l < records.jsonl | tr -d ' ')
+          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+          echo "Publishing $PUBLISHED records for run $RUN_ID"
+
+      - name: Snapshot posting count (before)
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          COUNT_BEFORE=$(psql "$SUPABASE_DB_URL" -X -t -A -c "select count(*) from job_postings;")
+          echo "COUNT_BEFORE=$COUNT_BEFORE" >> "$GITHUB_ENV"
+          echo "postings before: $COUNT_BEFORE"
+
+      - name: Publish records to Upstash Kafka REST
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.extract.outputs.published }}" = "0" ]; then
+            echo "no records extracted - skipping publish (run-complete is still sent so the run can complete)"
+            exit 0
+          fi
+          REST="${KAFKA_REST_URL%/}/produce/job-leads.raw"
+          AUTH="$KAFKA_REST_USERNAME:$KAFKA_REST_PASSWORD"
+          # Batch POSTs of up to 100 messages; each message carries the run_id header.
+          jq -c -n --arg run "$RUN_ID" \
+            '[inputs | {value: tojson, headers: [{key: "run_id", value: $run}]}] | _nwise(100)' \
+            records.jsonl \
+          | while IFS= read -r batch; do
+              curl -fsS -u "$AUTH" -H 'Content-Type: application/json' \
+                -d "$batch" "$REST" > /dev/null
+            done
+          echo "batches published"
+
+      - name: Publish run-complete control record
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          REST="${KAFKA_REST_URL%/}/produce/job-leads.raw"
+          jq -n -c --arg run "$RUN_ID" \
+            '{value: "run-complete", headers: [{key: "run_id", value: $run}, {key: "run_complete", value: "true"}]}' \
+          | curl -fsS -u "$KAFKA_REST_USERNAME:$KAFKA_REST_PASSWORD" \
+              -H 'Content-Type: application/json' -d @- "$REST" > /dev/null
+          echo "run-complete sent for $RUN_ID"
+
+      - name: Trigger Render deploy (wake the consumer)
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK" > /dev/null
+          echo "deploy hook triggered"
+
+      - name: Wait for the run to complete
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          # The single-partition topic preserves order: run-complete is consumed
+          # after every data record, so COMPLETED means the whole run is stored.
+          for i in $(seq 1 60); do
+            STATUS=$(psql "$SUPABASE_DB_URL" -X -t -A \
+              -c "select status from ingest_runs where run_id = '$RUN_ID';")
+            if [ "$STATUS" = "COMPLETED" ]; then
+              echo "run $RUN_ID COMPLETED"
+              exit 0
+            fi
+            echo "attempt $i/60: status='${STATUS:-<no row yet>}' - waiting 30s"
+            sleep 30
+          done
+          echo "::error::run $RUN_ID did not complete within 30 minutes - check the Render service logs"
+          exit 1
+
+      - name: Verify stored counts
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          read -r PUB STORED DLQ REJ < <(psql "$SUPABASE_DB_URL" -X -t -A -F ' ' \
+            -c "select published, stored, dlq, rejected from ingest_runs where run_id = '$RUN_ID';")
+          COUNT_AFTER=$(psql "$SUPABASE_DB_URL" -X -t -A -c "select count(*) from job_postings;")
+          DELTA=$((COUNT_AFTER - COUNT_BEFORE))
+          echo "run $RUN_ID: published=$PUB stored=$STORED dlq=$DLQ rejected=$REJ postings_delta=$DELTA"
+
+          # stored delta <= published is acceptable (dedupe); a positive
+          # publish with zero stored across the whole run means the consumer
+          # saw the batch but persisted nothing - fail loudly.
+          if [ "$PUB" -gt 0 ] && [ "$STORED" -eq 0 ] && [ "$DELTA" -eq 0 ]; then
+            echo "::error::pipeline published $PUB records for run $RUN_ID but the consumer stored none"
+            exit 1
+          fi
+          if [ "$DELTA" -gt "$PUB" ]; then
+            echo "::error::postings grew by $DELTA but only $PUB were published - unexpected writer or counting bug"
+            exit 1
+          fi
+          if [ "$DELTA" -ne "$STORED" ]; then
+            echo "::warning::postings delta ($DELTA) != run stored counter ($STORED) - check for concurrent writers"
+          fi
+          echo "verify OK"
