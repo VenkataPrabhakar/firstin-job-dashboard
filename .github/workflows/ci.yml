@@ -58,7 +58,8 @@ jobs:
       - name: All workflow actions pinned by SHA
         run: |
           # Every `uses:` line must reference a 40-hex-char commit SHA, never a tag.
-          if grep -R "uses:" .github/workflows | grep -vE "@[0-9a-f]{40}"; then
+          # (Comment lines excluded so this check cannot flag its own docs.)
+          if grep -R "uses:" .github/workflows | grep -vE "^[[:space:]]*#" | grep -vE "@[0-9a-f]{40}"; then
             echo "ERROR: unpinned action found above"
             exit 1
           fi
@@ -116,3 +117,5 @@ jobs:
           fetch-depth: 0
       - name: Secret scanning (gitleaks)
         uses: zricethezav/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
