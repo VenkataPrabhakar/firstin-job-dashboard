@@ -17,7 +17,7 @@ Morning agents (existing)          Ingest (daily 08:05)              Event backb
 ┌──────────────┐   JSON ledgers    ┌──────────────────┐   events     ┌──────────────┐   JPA    ┌─────────────────────┐
 │ C2C agent    │ ───────────────▶  │  Ingest producer │ ──────────▶  │    Kafka     │ ───────▶ │  Spring Boot 3      │
 │ W2 agent     │                   │  (GitHub Action  │   topic:     │  (Upstash    │  topic:  │  (Java 21)          │
-│ Full-time    │                   │   on schedule)   │  job-leads   │   free tier) │  consumer│  REST API + static  │
+│ Full-time    │                   │   on schedule)   │  job-leads   │   free tier) │  consumer│  REST API + React │
 │ agent        │                   └──────────────────┘   .raw       └──────────────┘          │  frontend           │
 └──────────────┘                                                    │ corrupt → job-leads.dlq └─────────────────────┘
                                                                     ▼                                  │
@@ -29,10 +29,10 @@ Morning agents (existing)          Ingest (daily 08:05)              Event backb
 
 | Layer | Choice | Why |
 |---|---|---|
-| Backend | Spring Boot 3 (Java 21) REST API | Owner's own stack; portfolio value; serves API + static frontend from one deployable |
+| Backend | Spring Boot 3 (Java 21) REST API | Owner's own stack; portfolio value; serves the API and the React SPA from one deployable |
 | Event streaming | Apache Kafka via Upstash free tier (local dev: Docker Compose) | Decouples ingest from serving; corrupt records go to a dead-letter topic instead of failing the batch; Kafka + Spring Boot is core to the owner's resume stack |
 | Database | PostgreSQL on Supabase free tier | Real relational DB, zero cost, zero ops; replaces the flat-JSON idea so history, dedupe and trends are queryable |
-| Frontend | Static HTML/CSS/JS served by the app | The dashboard UI below; no build step, works from the API |
+| Frontend | React 18 SPA (Vite), served by Spring Boot | Component-based UI for the tabbed dashboard; the Vite build output is bundled into the Spring Boot jar, so it stays one $0 deployable |
 | Ingestion | Scheduled GitHub Action, daily ~08:05 | Runs after the morning agents finish; reads the 4 agent ledger JSONs and publishes candidate records to Kafka |
 | CI/CD | GitHub Actions | On push: Maven build → automated QA acceptance tests (incl. Kafka integration tests) → deploy. Scheduled: daily ingest |
 | Cloud | Render free tier | $0/month; sleeps when idle, wakes in ~30s — fine for a morning-check dashboard |
@@ -80,6 +80,9 @@ One canonical record per real-world posting. Only `reported:true` records may en
 
 ## 4. UI / UX
 
+The frontend is a React single-page app: tab components, a search box, and listing
+cards, all fed by `fetch` calls to the API below.
+
 ### Navigation
 Tabs: **Today · C2C · W2 · Full-Time · Visa**.
 - **Today** (default): mixed feed of all fresh records from the last 24h, newest first.
@@ -116,11 +119,16 @@ Dense, professional daily-driver UI · mobile-friendly at 360px · keyboard acce
 
 ```yaml
 on: push → build → test → deploy
-  1. Checkout + set up Java 21
-  2. Maven build (spring-kafka, spring-data-jpa)
-  3. Automated QA suite (acceptance criteria §6 — fail the pipeline on violation),
+  1. Checkout
+  2. Set up Node → npm ci → npm run build (React + Vite)
+  3. Copy frontend/dist → backend src/main/resources/static/
+  4. Set up Java 21 → Maven build (spring-kafka, spring-data-jpa)
+  5. Automated QA suite (acceptance criteria §6 — fail the pipeline on violation),
      incl. Kafka integration tests (embedded Kafka / Testcontainers)
-  4. Deploy to Render (free tier) via deploy hook
+  6. Deploy to Render (free tier) via deploy hook
+
+Local dev: `npm run dev` (Vite, port 5173) proxies /api → localhost:8080;
+Spring Boot runs the API + Kafka consumer as usual.
 
 on: schedule (daily 08:05) → ingest
   1. Read the 4 agent ledger JSONs
