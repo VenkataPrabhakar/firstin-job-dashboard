@@ -51,8 +51,10 @@ dedupes them into PostgreSQL, and serves the listing API the React frontend
 
 - **Dedupe:** normalized (lowercased, whitespace-collapsed, trimmed)
   title + company + location → stable id. URL is secondary evidence only.
-  Re-seen postings update `updated_at` and add a source row; they never
-  change `first_seen` and never inflate `indexedToday`.
+  Re-seen postings update `updated_at` and add/refresh a source row (existing
+  rows get a fresh `seen_at`; nonblank contact fields merge without erasing
+  stored values); they never change `first_seen` and never inflate
+  `indexedToday`.
 - **Engagement:** exactly one canonical category per posting; extra categories
   become `engagement_tags`.
 - **Pay parsing:** handles `$70-75/hr`, `$120K`, `$130,000–$150,000/year`,
@@ -141,7 +143,59 @@ React frontend (Phase 2) · Render deploy + prod Kafka/Postgres wiring
 
 ## Process (filled in as the phase runs)
 
-1. Design written above and pushed to the branch before any code.
-2. Implementation on `feat/phase-1-backend`; `./mvnw -B verify` green locally.
+1. Design written above and pushed to the branch before any code
+   (`3cc9ec0`, 2026-09-25 19:11 UTC). Implementation branch:
+   `feat/phase-1-backend`.
+2. `./mvnw -B verify` green locally — see evidence below.
 3. PR opened with the template; CI runs; persona review loop; findings fixed.
-4. Owner's explicit merge approval → squash merge. (Pending.)
+4. Owner's explicit merge approval → squash merge. (Pending — not approved.)
+
+### Implementation evidence (2026-09-25)
+
+- **Stack versions:** Spring Boot 3.5.16, Java 21, Maven 3.9.9, Bucket4j
+  8.10.1, PostgreSQL 16 (compose) / H2 (tests).
+- **Final build:** `./mvnw -B verify` → `Tests run: 45, Failures: 0,
+  Errors: 0, Skipped: 0` → `BUILD SUCCESS`. Per-class:
+  `ProdDataSourceConfigTest` 3 · `DlqTest` 2 · `FreshnessTest` 4 ·
+  `IngestionServiceTest` 10 · `ListingApiTest` 12 · `PayParserTest` 13 ·
+  `RateLimitTest` 1.
+- **Sandbox build setup** (local-only, not committed, irrelevant to CI):
+  Maven needed the sandbox egress CA, a local TCP relay, and
+  `-Djava.net.preferIPv4Stack=true` (IPv6-mapped Java connections abort in
+  this sandbox) for forked JVMs.
+
+### Defects found during the build and their fixes
+
+1. **Embedded Kafka started in ZooKeeper mode** and ZK timed out in the
+   sandbox → `@EmbeddedKafka(..., kraft = true)` (also matches the KRaft
+   compose file); surefire `argLine` carries the IPv4 flag into forked JVMs.
+2. **The `@KafkaListener` container never started** — the app excludes
+   Boot's `KafkaAutoConfiguration`, which also removes the annotation
+   processor. `DlqTest` timed out with zero consumer activity. Fix: explicit
+   `@EnableKafka` on `KafkaConfig` (Boot's factories stay out of the way).
+3. **`@Transactional` self-invocation:** `ingestRaw()` called
+   `this.ingest()` directly, bypassing Spring's transaction proxy; the
+   re-seen path then hit `LazyInitializationException` on lazy sources.
+   Fix: `@Transactional` on the proxy entry point `ingestRaw()`.
+4. **Order-dependent counter tests** (ingest counters are shared
+   `AtomicLong`s) → assertions now measure before/after deltas.
+5. **JPA Criteria rejects `Sort.NullHandling.NULLS_LAST`** ("not yet
+   supported") → the unknown-age-sorts-oldest rule is asserted with an
+   explicit nulls-last ordering at the application level (native null
+   ordering differs between H2 and PostgreSQL anyway).
+6. **`BigDecimal` → `NUMERIC(19,2)` round-trip** made `$70` serialize as
+   `70.00` → API test expects `70.0`/`75.0` numerics.
+7. **Compose defects:** invalid `CLUSTER_ID` (not a Kafka UUID), missing
+   `KAFKA_CONTROLLER_LISTENER_NAMES` / `KAFKA_LISTENER_SECURITY_PROTOCOL_MAP`
+   → fixed; added `KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT`.
+8. **Config contract:** generic `KAFKA_EXTRA_PROPS` replaced with the named
+   `KAFKA_SASL_*` variables per the approved architecture; `sslmode=require`
+   is now enforced in code (`ProdDataSourceConfig`, prod profile).
+
+### Deviations from the design above
+
+- `lastPull` serializes as explicit `null` (never omitted) via
+  `@JsonInclude(ALWAYS)` on the getter, so consumers can distinguish
+  "empty" from "missing".
+- `docs/DESIGN.md` was not otherwise changed; this doc's process section is
+  the implementation record.

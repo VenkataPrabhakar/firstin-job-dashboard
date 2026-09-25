@@ -1,0 +1,10 @@
+# Local development against backend/docker-compose.yml (Kafka KRaft + Postgres 16).
+# Activate with:  ./mvnw -B spring-boot:run -Dspring-boot.run.profiles=local
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    hibernate:
+      # Convenience for local iteration; prod validates against a managed schema.
+      ddl-auto: update

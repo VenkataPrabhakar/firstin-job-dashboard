@@ -1,0 +1,41 @@
+# Base configuration. Everything secret comes from the environment — nothing
+# secret lives in this repo (docs/DESIGN.md §9).
+#
+#   SPRING_DATASOURCE_URL   JDBC URL (prod: Supabase URL, must include ?sslmode=require)
+#   DB_USERNAME / DB_PASSWORD
+#   KAFKA_BOOTSTRAP_SERVERS (prod: Upstash endpoint)
+#   KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD
+#                           (prod: Upstash SCRAM credentials; when set, clients
+#                           use SASL_SSL — the JAAS config is assembled in code
+#                           so the password never lands in a file or a log)
+#   KAFKA_SASL_MECHANISM    default SCRAM-SHA-256
+#   KAFKA_SECURITY_PROTOCOL overrides the default (SASL_SSL with SASL on,
+#                           PLAINTEXT otherwise)
+
+spring:
+  application:
+    name: firstin-dashboard
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/firstin}
+    username: ${DB_USERNAME:firstin}
+    password: ${DB_PASSWORD:firstin}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+app:
+  kafka:
+    raw-topic: job-leads.raw
+    dlq-topic: job-leads.dlq
+  rate-limit:
+    per-minute: 120
+
+server:
+  port: 8080

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.firstin</groupId>
+  <artifactId>firstin-dashboard</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>FirstIn job dashboard — backend</name>
+  <description>Phase 1: Spring Boot API + Kafka ingest for the FirstIn job dashboard.</description>
+
+  <properties>
+    <java.version>21</java.version>
+    <bucket4j.version>8.10.1</bucket4j.version>
+  </properties>
+
+  <dependencies>
+    <!-- Web + API -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+
+    <!-- Security headers (CSP, HSTS, etc.) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+
+    <!-- Persistence: JPA only, no native SQL -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- Kafka ingest -->
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka</artifactId>
+    </dependency>
+
+    <!-- Per-IP rate limiting on /api/** -->
+    <dependency>
+      <groupId>com.bucket4j</groupId>
+      <artifactId>bucket4j-core</artifactId>
+      <version>${bucket4j.version}</version>
+    </dependency>
+
+    <!-- Tests: H2 for JPA, embedded Kafka for the consumer/DLQ path -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Forked test JVMs don't inherit MAVEN_OPTS; force IPv4 so the
+               embedded Kafka broker binds/connects reliably in sandboxes
+               where IPv6-mapped connections are broken. Harmless in CI. -->
+          <argLine>-Djava.net.preferIPv4Stack=true</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
