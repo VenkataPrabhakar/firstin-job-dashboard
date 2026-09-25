@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keeps SHA-pinned GitHub Actions fresh (Dependabot understands SHA pins).
+  # npm (frontend/) and maven (backend/) entries are added by the Phase 1 and
+  # Phase 2 implementation PRs that introduce those directories.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
