@@ -14,7 +14,7 @@ all features unlocked — no subscriptions, no paywalls, no Pro badges.
 ```
 GitHub Actions (daily 08:05 CDT / 07:05 CST)
   │  extract ledgers → POST batches to Upstash REST → run-complete record
-  │  → Render deploy hook (wakes the free service) → verify in Postgres
+  │  → wake the service (plain HTTPS) → verify in Postgres
   ▼
 Upstash Kafka ──job-leads.raw (1 partition)──▶ Render (Spring Boot + consumer)
                                                     │  serves UI / and API /api/**
@@ -61,7 +61,7 @@ create table job_postings (
 
 create table job_sources (
   id            bigint generated always as identity primary key,
-  posting_id    varchar(40)   not null references job_postings (id),
+  posting_id    varchar(40)   not null,
   source        varchar(100),
   url           varchar(2000),
   url_verified  boolean,
@@ -157,17 +157,17 @@ uses SASL_SSL with SCRAM-SHA-256 automatically (see
 4. Click **Apply**. Render builds the Docker image (multi-stage: Maven builds
    the Spring Boot jar and the React SPA is bundled into it) and starts the
    service. The first build takes several minutes (npm + Maven downloads).
-5. Note the service URL (`https://<name>.onrender.com`) and create a
-   **Deploy Hook**: service → **Settings → Deploy Hook** → create one, copy
-   the URL. It becomes the `RENDER_DEPLOY_HOOK` GitHub Secret. The daily
-   workflow calls it to wake/restart the service before the consumer drains
-   each batch.
+5. Note the service URL (`https://<name>.onrender.com`) — the daily workflow
+   wakes the service with a plain HTTPS request to it (free-tier services
+   sleep after 15 min idle; no rebuild involved). You will enter this URL
+   as a GitHub Actions *variable* in Step 4.
 
 ---
 
 ## Step 4 — GitHub Secrets (daily pipeline)
 
-Repo → **Settings → Secrets and variables → Actions** → add:
+Repo → **Settings → Secrets and variables → Actions** → add these
+**secrets**:
 
 | Secret | Value |
 |---|---|
@@ -175,7 +175,12 @@ Repo → **Settings → Secrets and variables → Actions** → add:
 | `KAFKA_REST_USERNAME` | Upstash REST username |
 | `KAFKA_REST_PASSWORD` | Upstash REST password |
 | `SUPABASE_DB_URL` | `postgresql://pipeline_ro:…` (Step 1.4) |
-| `RENDER_DEPLOY_HOOK` | Render deploy hook URL (Step 3.5) |
+
+Then, on the same page, switch to the **Variables** tab and add:
+
+| Variable | Value |
+|---|---|
+| `SERVICE_URL` | the Render service URL from Step 3.5 (e.g. `https://firstin-dashboard.onrender.com`) — public, not secret |
 
 Until these exist, the daily workflow prints
 `pipeline not configured — see docs/RENDER.md` and exits successfully.
@@ -187,7 +192,7 @@ Until these exist, the daily workflow prints
 1. Open the service URL — the dashboard UI loads (the SPA is bundled in the jar).
 2. `GET https://<name>.onrender.com/api/health` → `{"status":"UP"}`.
 3. Trigger the workflow manually: **Actions → Daily ingest pipeline →
-   Run workflow**. Watch it extract, publish, trigger the deploy hook, wait
+   Run workflow**. Watch it extract, publish, wake the service, wait
    for the run to reach `COMPLETED`, and verify counts.
 4. The UI footer ("last pull") now shows the latest completed run time.
 
@@ -196,7 +201,8 @@ Until these exist, the daily workflow prints
 - The workflow runs at 13:05 UTC (08:05 CDT / 07:05 CST — GitHub cron is
   UTC-fixed; the doc comment in `daily-ingest.yml` explains the DST shift).
 - Free-tier notes: the Render service spins down after 15 min idle (the
-  deploy hook wakes it); the first request after idle is slow. Upstash and
+  workflow wakes it with a plain HTTPS request — no rebuild); the first
+  request after idle is slow. Upstash and
   Supabase free tiers have throughput/storage limits adequate for a personal
   dashboard; ledgers stay in the repo, only normalized postings are stored.
 - The single-partition topic preserves publish order, so the run-complete
@@ -211,7 +217,7 @@ Until these exist, the daily workflow prints
 |---|---|
 | Docker build fails: `release version 21 not supported` | The build image's JDK drifted. The Dockerfile pins `maven:3.9-eclipse-temurin-21` (build) and `eclipse-temurin:21-jre` (runtime) — confirm those tags; bump them together if a newer LTS is ever wanted. |
 | App starts but `/api/health` fails / DB errors in logs | `SPRING_DATASOURCE_URL` wrong or Supabase project paused. Check the URL includes the host and `?sslmode=require`; verify the DDL from Step 1 ran. |
-| Pipeline fails at "Wait for the run to complete" (timeout) | Deploy hook didn't start a healthy service, or the consumer can't reach Upstash. Check Render **Logs** for Kafka auth errors; verify the deploy hook URL secret. |
+| Pipeline fails at "Wait for the run to complete" (timeout) | Service didn't wake or the consumer can't reach Upstash. Check Render **Logs** for Kafka auth errors; verify the `SERVICE_URL` variable. |
 | Pipeline fails: "published N but stored none" | The consumer saw the batch but stored nothing — check Render logs for deserialization/validation errors and the `job-leads.dlq` topic. |
 | Workflow prints "pipeline not configured" | A secret in Step 4 is missing — add it and re-run. |
 | UI loads but `/api/*` 404s | The jar didn't bundle the SPA or the API profile is wrong — confirm `SPRING_PROFILES_ACTIVE=prod` and that the build log shows the frontend build ran. |

@@ -9,9 +9,12 @@ name: Daily ingest pipeline
 # with US daylight saving time — this is documented, not a bug.
 #
 # There is no HTTP ingestion endpoint by design (threat model): records enter
-# only through the Kafka consumer in the deployed service. The Render deploy
-# hook below wakes/restarts the (free-tier, spins down after 15 min idle)
-# service so the consumer drains the batch.
+# only through the Kafka consumer in the deployed service. A plain HTTPS
+# request to the service wakes it (free-tier services spin down after
+# 15 min idle) so the consumer drains the batch — no rebuild involved.
+# (Review note: an earlier draft used the Render deploy hook here; that
+# triggers a full rebuild+redeploy every day for no reason, so it was
+# replaced with a wake-up request.)
 #
 # If the pipeline secrets are not configured yet, the job prints
 # "pipeline not configured — see docs/RENDER.md" and ends successfully
@@ -34,7 +37,7 @@ env:
   KAFKA_REST_USERNAME: ${{ secrets.KAFKA_REST_USERNAME }}
   KAFKA_REST_PASSWORD: ${{ secrets.KAFKA_REST_PASSWORD }}
   SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-  RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+  SERVICE_URL: ${{ vars.SERVICE_URL }}
 
 jobs:
   ingest:
@@ -47,7 +50,7 @@ jobs:
       - name: Check pipeline secrets
         id: secrets
         run: |
-          for var in KAFKA_REST_URL KAFKA_REST_USERNAME KAFKA_REST_PASSWORD SUPABASE_DB_URL RENDER_DEPLOY_HOOK; do
+          for var in KAFKA_REST_URL KAFKA_REST_USERNAME KAFKA_REST_PASSWORD SUPABASE_DB_URL SERVICE_URL; do
             if [ -z "${!var:-}" ]; then
               echo "pipeline not configured — see docs/RENDER.md"
               echo "configured=false" >> "$GITHUB_OUTPUT"
@@ -110,11 +113,23 @@ jobs:
               -H 'Content-Type: application/json' -d @- "$REST" > /dev/null
           echo "run-complete sent for $RUN_ID"
 
-      - name: Trigger Render deploy (wake the consumer)
+      - name: Wake the Render service
         if: steps.secrets.outputs.configured == 'true'
         run: |
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK" > /dev/null
-          echo "deploy hook triggered"
+          set -euo pipefail
+          # Free-tier services sleep after 15 min idle; an HTTPS request wakes
+          # them (cold boot can take ~60s, hence the retries). This starts the
+          # embedded Kafka consumer so it drains the batch just published.
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 90 "${SERVICE_URL%/}/api/health" > /dev/null; then
+              echo "service is awake"
+              exit 0
+            fi
+            echo "attempt $i/12: service not up yet - waiting 30s"
+            sleep 30
+          done
+          echo "::error::service did not wake within 6 minutes - check the Render dashboard"
+          exit 1
 
       - name: Wait for the run to complete
         if: steps.secrets.outputs.configured == 'true'
@@ -141,15 +156,23 @@ jobs:
           set -euo pipefail
           read -r PUB STORED DLQ REJ < <(psql "$SUPABASE_DB_URL" -X -t -A -F ' ' \
             -c "select published, stored, dlq, rejected from ingest_runs where run_id = '$RUN_ID';")
+          if [ -z "${PUB:-}" ] || [ -z "${STORED:-}" ]; then
+            echo "::error::no ingest_runs row for $RUN_ID - the run never reached the consumer"
+            exit 1
+          fi
           COUNT_AFTER=$(psql "$SUPABASE_DB_URL" -X -t -A -c "select count(*) from job_postings;")
           DELTA=$((COUNT_AFTER - COUNT_BEFORE))
-          echo "run $RUN_ID: published=$PUB stored=$STORED dlq=$DLQ rejected=$REJ postings_delta=$DELTA"
+          # Duplicates are derivable: every consumed record ends up stored,
+          # duplicate, DLQ, or rejected — so the counters must reconcile.
+          DUP=$((PUB - STORED - DLQ - REJ))
+          echo "run $RUN_ID: published=$PUB stored=$STORED duplicates=$DUP dlq=$DLQ rejected=$REJ postings_delta=$DELTA"
 
-          # stored delta <= published is acceptable (dedupe); a positive
-          # publish with zero stored across the whole run means the consumer
-          # saw the batch but persisted nothing - fail loudly.
-          if [ "$PUB" -gt 0 ] && [ "$STORED" -eq 0 ] && [ "$DELTA" -eq 0 ]; then
-            echo "::error::pipeline published $PUB records for run $RUN_ID but the consumer stored none"
+          # An all-duplicate run (stored=0, delta=0) is healthy and must NOT
+          # fail: dedupe means the consumer correctly persisted nothing new.
+          # Fail only when the counters cannot be reconciled, or postings
+          # grew by more than the run published (phantom writer / bug).
+          if [ "$DUP" -lt 0 ]; then
+            echo "::error::run counters do not reconcile for $RUN_ID (published=$PUB stored=$STORED dlq=$DLQ rejected=$REJ)"
             exit 1
           fi
           if [ "$DELTA" -gt "$PUB" ]; then

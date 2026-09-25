@@ -61,14 +61,17 @@ history instead of `max(first_seen)`.
   free plan) plus `docs/RENDER.md` — exact step-by-step: create account →
   New → Blueprint → connect repo → add env vars (`SPRING_DATASOURCE_URL` with
   `?sslmode=require`, `DB_USERNAME`, `DB_PASSWORD`, `KAFKA_*`) → deploy. The
-  deploy hook URL goes to GitHub Secrets as `RENDER_DEPLOY_HOOK`; the daily
-  workflow calls it to wake the (sleeping) free service before the consumer
-  drains each batch. The owner creates the Render/Supabase/Upstash accounts
-  and pastes the secrets — that part cannot be automated.
+  daily workflow wakes the (sleeping) free service with a plain HTTPS request
+  to the service URL — stored as the repo variable `SERVICE_URL` — before the
+  consumer drains each batch. (Review change: the design originally used a
+  Render deploy hook here; replaced, because a deploy hook triggers a full
+  rebuild + redeploy every day for no reason.) The owner creates the
+  Render/Supabase/Upstash accounts and pastes the secrets — that part cannot
+  be automated.
 - **Secrets:** GitHub Secrets for the workflow (`KAFKA_REST_URL`,
   `KAFKA_REST_USERNAME`, `KAFKA_REST_PASSWORD`, `SUPABASE_DB_URL` read-only for
-  verify, `RENDER_DEPLOY_HOOK`); Render env vars for the app. Nothing secret
-  in the repo, ever.
+  verify) plus the repo variable `SERVICE_URL`; Render env vars for the app.
+  Nothing secret in the repo, ever.
 
 ## Security implementation
 
@@ -186,3 +189,53 @@ the earlier `/tmp` implementation was lost to VM replacement and rebuilt):
    the egress CA in cacerts, per-session proxy credentials in
    `~/.m2/settings.xml`, and a `/root/.m2/settings.xml` symlink (the shell
    runs as root, so Java's `user.home` is `/root`). None of this is committed.
+
+### Independent review findings (post-implementation, before merge approval)
+
+The implementer's report claimed all review points were addressed; the
+independent review verified each one against the branch and found three
+issues plus one misreported fix:
+
+1. **Duplicate FK in `docs/RENDER.md` — claimed fixed, still present.**
+   The report said the inline `references job_postings (id)` on
+   `job_sources.posting_id` was removed, but the branch still had both the
+   inline reference AND the named `fk_job_sources_posting` constraint.
+   Fixed in review: inline reference removed, named constraint kept. (Docs
+   only; Postgres would have created two redundant FKs, not an error.)
+2. **Verify step false-failed healthy all-duplicate runs (bug).** The check
+   `published > 0 && stored == 0 && delta == 0 → fail` treated a run where
+   every record was a duplicate as a pipeline failure — but dedupe means the
+   consumer correctly persists nothing new. Fixed in review: the step now
+   derives `duplicates = published - stored - dlq - rejected` and fails only
+   when the counters cannot reconcile (`duplicates < 0`) or postings grew by
+   more than published (phantom writer); `delta != stored` stays a warning.
+   An all-duplicate run now passes. Also added a guard that fails loudly when
+   the `ingest_runs` row is missing entirely.
+3. **Daily deploy hook = full rebuild every day (design fix).** The workflow
+   POSTed the Render deploy hook daily, which triggers a complete Docker
+   rebuild + redeploy (npm + Maven, several minutes) just to wake a sleeping
+   free-tier service. Replaced with a plain HTTPS `GET` to
+   `$SERVICE_URL/api/health` with retries — Render wakes sleeping services on
+   HTTP, no rebuild involved. The secret `RENDER_DEPLOY_HOOK` became the
+   (non-secret) repo variable `SERVICE_URL`; `docs/RENDER.md` Steps 3–4, the
+   architecture diagram, and troubleshooting updated accordingly.
+4. **Rate limiter on Render — deferred Phase 1 items, assessed.** (a)
+   `X-Forwarded-For` trust: on Render the app is behind Render's proxy, so
+   the leftmost XFF entry is the practical client id (using `getRemoteAddr()`
+   would put every user in one shared bucket). Spoofing can rotate buckets
+   but each stays capped — accepted and documented in
+   `RateLimitingFilter.clientIp` javadoc. (b) Unbounded bucket map: entries
+   are tiny; on the order of ~1M distinct spoofed IPs would be needed to
+   threaten the 512 MB container — assessed as an acceptable risk for a
+   courtesy control on a public read-only API, documented in the same place.
+
+Verified independently and found correct: jar contains
+`BOOT-INF/classes/static/index.html` + hashed `/assets/*` (StaticBundleTest,
+green in CI); no SPA fallback needed (no client-side routing — tabs are
+in-app state, `/api/**` untouched); single-threaded consumer (factory
+concurrency unset) + 1-partition topic ⇒ run counters and the run-complete
+ordering are safe; Upstash REST produce format
+`{value, headers: [{key, value}]}` with basic auth matches Upstash's API;
+extract script is jq-only with quoted vars (no eval — hostile JSON and shell
+injection safe); `pipeline_ro` is genuinely read-only (SELECT on three
+tables); no secrets committed (security-scan + gitleaks green).
