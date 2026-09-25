@@ -12,8 +12,9 @@ process is live. Approved by the full review panel; see the Phase 0 PR.
 ## 2. Branch protection on `main` (applied via API)
 
 - Require pull request before merging; dismiss stale reviews on new pushes.
-- Required status checks (strict): `CI / process-validation`, `CI / security-scan`.
-  Backend/frontend jobs join the required set when those directories land.
+- Required status checks (strict): `process-validation`, `security-scan`
+  (the check-run names as reported by CI; backend/frontend jobs join the
+  required set when those directories land).
 - Require conversation resolution before merging (no unresolved threads).
 - Required approving review count: **0 while the repo has a single collaborator**
   (GitHub blocks self-approval, so any nonzero value would make merging
