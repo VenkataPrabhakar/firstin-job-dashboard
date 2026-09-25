@@ -1,0 +1,23 @@
+# Build output
+backend/target/
+*.jar
+*.class
+
+# Maven
+# (wrapper jar not used by this wrapper version; mvnw downloads the distro)
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets (never commit)
+.env
+*.env

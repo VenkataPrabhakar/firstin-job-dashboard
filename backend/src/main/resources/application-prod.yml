@@ -1,0 +1,22 @@
+# Production profile: everything comes from the environment (Supabase Postgres
+# + Upstash Kafka). Wired for real in Phase 3 (Render deploy).
+#
+# Required env:
+#   SPRING_DATASOURCE_URL   e.g. jdbc:postgresql://<host>:5432/postgres
+#                           (?sslmode=require is APPENDED below when missing —
+#                           Supabase mandates TLS)
+#   DB_USERNAME / DB_PASSWORD
+#   KAFKA_BOOTSTRAP_SERVERS (Upstash endpoint)
+#   KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD (Upstash SCRAM credentials)
+#   KAFKA_SASL_MECHANISM    default SCRAM-SHA-256
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
