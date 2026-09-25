@@ -13,30 +13,36 @@ A personal, single-user job-discovery dashboard that collects fresh job leads ev
 ## 2. Architecture
 
 ```
-Morning agents (existing)          Ingestion (daily 08:05)          App
-┌──────────────┐   JSON ledgers    ┌──────────────────┐   Postgres   ┌─────────────────────┐
-│ C2C agent    │ ───────────────▶  │  Ingest job      │ ──────────▶  │  Spring Boot 3      │
-│ W2 agent     │                   │  normalize →     │              │  REST API + static  │
-│ Full-time    │                   │  dedupe → load   │              │  frontend           │
-│ agent        │                   │  (GitHub Action  │              └─────────────────────┘
-└──────────────┘                   │   on schedule)   │                       │
-                                   └──────────────────┘                       ▼
-                                                                    ┌─────────────────────┐
-                                                                    │  Postgres (Supabase │
-                                                                    │  free tier)         │
-                                                                    └─────────────────────┘
+Morning agents (existing)          Ingest (daily 08:05)              Event backbone            App
+┌──────────────┐   JSON ledgers    ┌──────────────────┐   events     ┌──────────────┐   JPA    ┌─────────────────────┐
+│ C2C agent    │ ───────────────▶  │  Ingest producer │ ──────────▶  │    Kafka     │ ───────▶ │  Spring Boot 3      │
+│ W2 agent     │                   │  (GitHub Action  │   topic:     │  (Upstash    │  topic:  │  (Java 21)          │
+│ Full-time    │                   │   on schedule)   │  job-leads   │   free tier) │  consumer│  REST API + static  │
+│ agent        │                   └──────────────────┘   .raw       └──────────────┘          │  frontend           │
+└──────────────┘                                                    │ corrupt → job-leads.dlq └─────────────────────┘
+                                                                    ▼                                  │
+                                                          ┌─────────────────────┐                      ▼
+                                                          │  Postgres (Supabase │           ┌─────────────────────┐
+                                                          │  free tier)         │◀──────────│  (served by the app)│
+                                                          └─────────────────────┘           └─────────────────────┘
 ```
 
 | Layer | Choice | Why |
 |---|---|---|
 | Backend | Spring Boot 3 (Java 21) REST API | Owner's own stack; portfolio value; serves API + static frontend from one deployable |
+| Event streaming | Apache Kafka via Upstash free tier (local dev: Docker Compose) | Decouples ingest from serving; corrupt records go to a dead-letter topic instead of failing the batch; Kafka + Spring Boot is core to the owner's resume stack |
 | Database | PostgreSQL on Supabase free tier | Real relational DB, zero cost, zero ops; replaces the flat-JSON idea so history, dedupe and trends are queryable |
 | Frontend | Static HTML/CSS/JS served by the app | The dashboard UI below; no build step, works from the API |
-| Ingestion | Scheduled GitHub Action, daily ~08:05 | Runs after the morning agents finish; reads the 4 agent ledger JSONs, normalizes, dedupes, loads Postgres |
-| CI/CD | GitHub Actions | On push: Maven build → automated QA acceptance tests → deploy. Scheduled: daily ingest |
+| Ingestion | Scheduled GitHub Action, daily ~08:05 | Runs after the morning agents finish; reads the 4 agent ledger JSONs and publishes candidate records to Kafka |
+| CI/CD | GitHub Actions | On push: Maven build → automated QA acceptance tests (incl. Kafka integration tests) → deploy. Scheduled: daily ingest |
 | Cloud | Render free tier | $0/month; sleeps when idle, wakes in ~30s — fine for a morning-check dashboard |
 
-**Total running cost: $0/month** (GitHub + Supabase free tier + Render free tier).
+**Total running cost: $0/month** (GitHub + Supabase free tier + Upstash Kafka free tier + Render free tier).
+
+### Kafka topics
+- `job-leads.raw` — ingest producer publishes one event per candidate record (only `reported:true`).
+- `job-leads.dlq` — consumer quarantines corrupt/unparseable records here with the failure reason, instead of failing the batch. Backs QA criterion 9 ("corrupt records fail safely").
+- Consumer group `firstin-ingest` (idempotent: stable record IDs make replays safe).
 
 ## 3. Data contract
 
@@ -111,14 +117,17 @@ Dense, professional daily-driver UI · mobile-friendly at 360px · keyboard acce
 ```yaml
 on: push → build → test → deploy
   1. Checkout + set up Java 21
-  2. Maven build
-  3. Automated QA suite (acceptance criteria §6 — fail the pipeline on violation)
+  2. Maven build (spring-kafka, spring-data-jpa)
+  3. Automated QA suite (acceptance criteria §6 — fail the pipeline on violation),
+     incl. Kafka integration tests (embedded Kafka / Testcontainers)
   4. Deploy to Render (free tier) via deploy hook
 
 on: schedule (daily 08:05) → ingest
   1. Read the 4 agent ledger JSONs
-  2. Normalize → dedupe → load Postgres (only reported:true)
-  3. Record ingest run in meta table; failures fail loudly, never silently
+  2. Publish candidate records to Kafka topic job-leads.raw (only reported:true)
+  3. Spring consumer: normalize → dedupe → load Postgres; corrupt records →
+     job-leads.dlq with reason, never failing the batch
+  4. Record ingest run in meta table; failures fail loudly, never silently
 ```
 
 ## 6. QA acceptance criteria (automated in CI)
