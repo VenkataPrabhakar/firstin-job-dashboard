@@ -34,7 +34,9 @@ process is live. Approved by the full review panel; see the Phase 0 PR.
 6. Repeat until reviewers are satisfied: no unresolved threads, no active
    "request changes" reviews.
 7. Team lead verifies every checklist box, including all department approvals.
-8. Squash merge only. Merge to `main` triggers deployment.
+8. Squash merge only. Merge to `main` triggers deployment once Phase 1 wires
+   the Render deploy (Phase 0 has no deploy target by design — there is no
+   product code yet).
 
 ## 4. Required approvals
 
@@ -79,6 +81,9 @@ Final word on every PR: VP — Iron Man.
 - Node: 22 LTS for the frontend build.
 - Package manager: npm with a committed `package-lock.json` (revisit only if a
   later phase justifies pnpm/yarn; that decision would be its own PR).
+- **Open decision for Phase 1:** Maven vs Gradle for the backend build. The CI
+  backend job supports both via wrapper detection and fails loudly if neither
+  wrapper is committed; Phase 1 must pick one and record why.
 - Workflow concurrency: cancel-in-progress per ref, so stale runs never gate a PR.
 
 ## 7. Costs
