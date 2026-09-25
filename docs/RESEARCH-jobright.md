@@ -1,59 +1,97 @@
-# Research: jobright.ai recommendations page
+# Research: jobright.ai (full public site tour)
 
 Date: 2026-09-25. Reviewed read-only (no sign-in) at the owner's request, to
 identify ideas worth borrowing for FirstIn.
 
 ## Access outcome (honest)
 
-- `https://jobright.ai/jobs/recommend` **redirects to the marketing homepage**
-  without login — the real recommendations feed is account-gated and could not
-  be observed.
-- Job-detail pages (`/jobs/info/<id>`) are behind a bot-verification challenge,
-  which was not attempted.
-- All observations below come from the public homepage's product demos, live
-  ticker, and feature descriptions — **not** from the live feed UX.
+- `/jobs/recommend` redirects to the homepage without login; `/jobs/info/<id>`
+  and `/jobs/*` SEO listing pages sit behind a Cloudflare security check (not
+  attempted). The live personalized feed could not be observed.
+- Two **public listing pages** WERE fully observable and are the most valuable
+  source: `/remote-jobs` ("Top U.S. 100% Remote Jobs (Updated Hourly)") and
+  `/entry-level-jobs` ("Top 2026 U.S. Entry Level Jobs for New Grad").
+- Also toured: `/ai-job-match`, `/ai-agent`, `/ai-resume-builder`,
+  `/job-referral`, `/orion-copilot`, `/job-autofill`, `/h1b-jobs`,
+  `/interview-landing`, `/coach-landing`, `/employers`, `/employers/pricing`,
+  `/tnt`, `/blog/is-jobright-legit/`.
 
-## Observed UX patterns
+## Observed UX patterns (public listing pages)
 
-1. **Fresh-jobs ticker** under the hero: multi-lane auto-scrolling cards showing
-   company logo, company name, **relative timestamp** ("4 minutes ago",
-   "13 minutes ago", "1 hour ago") as the primary freshness signal, then the
-   job title. Aggregate counters above it: "Today's New Jobs 400,000+".
-2. **Match-score cards:** circular "Overall" percentage badge (e.g. 95%),
-   timestamp pill ("1 hour ago"), logo, title, company. A "Why You Are A Good
-   Fit" panel breaks the score into sub-dimensions ("95% Exp. Level",
-   "93% Skill", "96% Industry Exp.") with a ✓/✕ requirement checklist.
-3. **Application tracking** as a first-class dashboard view ("track every
-   application from one dashboard").
-4. **Pre-application field checklist:** "Required (10/12 filled)" with per-field
-   ✓/− status before auto-apply.
-5. **Faceted search:** Job Title, Work Model, Country, City, Experience Level.
+**Job card anatomy** (`/remote-jobs`): company logo + "Company · N minutes ago"
++ job title + location · remote flag + level pill ("Lead/Staff") + salary-range
+pill ("$250K/yr - $349K/yr", sometimes hourly "$70/hr") + "View →" link +
+one-line company blurb + industry tags + company size ("1000+ Employees") +
+growth-stage pill ("Early Stage" / "Growth Stage" / "Public"). Contract type is
+sometimes embedded in the title ("DevSecOps Engineer (W2 Contract only/
+No 3rd Parties)").
 
-## Worth borrowing for FirstIn
+**Freshness displays:** "311,222 Total Openings" / "22,674 New Openings Today"
+counters; `/entry-level-jobs` shows an explicit
+**"Last Updated: September 25, 2026, 10:40 AM PDT"** line — the most honest
+freshness pattern on the site.
 
-- **Relative timestamps as the primary freshness signal** — validates our
-  honest-timestamp rule (§4 UI-UX.md). Keep "First seen Xh ago" prominent.
-- **Header aggregate counter** — our "Indexed today: N" is the same instinct;
-  Jobright confirms it works as a motivating dashboard stat.
-- **"Why this job surfaced" transparency** — a small per-card line (source +
-  matched signal, e.g. "via LinkedIn · visa: confirmed") mirrors their
-  "Why You Are A Good Fit" panel without any ML.
-- **Compact card anatomy** (logo/name/title scannable at a glance) — our card
-  spec already follows this; no change needed.
-- **Faceted search** — validates our tab + search structure; work-model and
-  location facets are a sensible future enhancement, not v1 scope.
+**Filters:** Job Type (Full-time / Contract / Part-time / Internship),
+Experience Level dropdowns; a "Browse by Category" index with expandable
+subcategories.
+
+**Segment pages:** each segment gets a headline ("Top U.S. 100% Remote Jobs
+(Updated Hourly)") plus a source line ("Updated hourly from major job boards
+and 200K+ company career sites"). `/h1b-jobs` runs a dedicated visa-sponsorship
+segment with per-title × location index pages.
+
+**Homepage search widget:** Job Title / Work Model / Country / City /
+Experience Level + GO — structured facets, not just free text.
+
+**Empty/404 state:** plain-language explanation + grouped navigation links
+instead of a dead end — a good model.
+
+## Worth borrowing for FirstIn (ranked)
+
+1. **Explicit "Last Updated: <date, time + timezone>" line** — adopted into
+   UI-UX.md footer (was "Last pull: <time>", now with timezone).
+2. **"N New Openings Today" / "M Total Openings" counters** — our "Indexed
+   today: N" is the same instinct; consider adding a total-openings counter.
+3. **Relative timestamp directly under the company name** on every card —
+   validates our "First seen Xh ago" placement.
+4. **Contract type in pills/title** ("W2 Contract only") — maps 1:1 onto our
+   C2C / W2 / Full-Time tabs and badges.
+5. **Per-tab source lines** — each tab gets a one-line source note, e.g.
+   "Aggregated from morning agent sweeps · LinkedIn posts, Google, Dice,
+   Indeed, ZipRecruiter, recruiter emails." (Adopted into UI-UX.md.)
+6. **Dedicated visa segment** (`/h1b-jobs`) — validates our always-visible Visa
+   tab as a first-class segment, not a filter.
+7. **Structured search facets** (work model, location, experience level) —
+   future enhancement, not v1.
+8. **Helpful empty states** with navigation — matches our empty-tab spec.
 
 ## Not worth copying
 
-- The gated feed itself (unobservable); Orion auto-apply and resume tailoring
-  (paid value prop, irrelevant to a free discovery feed); recruiter-network and
-  interview-prep features (out of scope); vanity aggregate stats.
-- Note: Jobright does **not** expose recruiter contact info publicly — confirms
-  we need our own sourcing for the "recruiter always visible" rule.
+- AI agent / auto-apply / Orion copilot, resume tailoring, match-score breakdowns
+  (all need a logged-in user profile + paid AI spend — meaningless for a free
+  no-login feed).
+- Insider Connections contact discovery (account-gated, monetized) — our
+  recruiter contacts come from free public sources instead.
+- TNT network, career coaching, autofill extension, employer pricing ($499/mo)
+  — irrelevant to a free discovery dashboard.
+- Vanity counters ("8,000,000+ jobs") at face value — a personal dashboard uses
+  its own crawl counts.
+- Their broken subcategory links ("undefined/...") and dead footer tool links —
+  copy the look, not the rot.
 
-## Decision
+## Data-sourcing context
 
-No design changes required. The research **validates** the current UI-UX.md
-(timestamp prominence, header counter, card anatomy, tab + search structure)
-and adds two future enhancements to the backlog: per-card "why surfaced" line,
-work-model/location facets.
+Per their blog (2025-06-18): ~8M live postings, ~400K fresh/day, aggregated
+from LinkedIn, Indeed, and company career sites, with screening that removes
+"fake" and outdated listings. Launched 2023, $7.7M raised, freemium
+($30/mo Premium mentioned for AI features). Job-seeker pricing page not found
+publicly.
+
+## Decisions for FirstIn
+
+- Adopted: timezone-explicit "Last updated" footer line; per-tab source lines
+  (UI-UX.md updated).
+- Backlog: total-openings counter; work-model/location search facets;
+  seniority pill on cards; per-card "why surfaced" line (from the earlier
+  recommendations-page pass).
+- No architecture changes.
