@@ -157,7 +157,37 @@ on: schedule (daily 08:05) → ingest pipeline (ADF-style)
 8. Edge-case fixture set renders with zero console errors.
 9. Daily regression: new records appear, old ages advance, duplicates stay merged, corrupt records fail safely.
 
-## 7. Open questions for the thread
+## 7. GitHub workflow (binding)
+
+- **Branches:** `main` is protected — no direct pushes, ever. All work happens on
+  feature branches (`feat/...`, `fix/...`, `docs/...`).
+- **Every change is a PR.** Each PR uses the template: what changed, why, which
+  design section it implements, which QA criteria it affects, and test evidence.
+- **CI runs on every PR** (and every push to a PR branch): Maven build → full test
+  suite → QA acceptance suite (§6). A red check blocks the merge — no exceptions.
+- **Senior review by field:** every PR is reviewed by the senior of its domain —
+  backend PRs by Hulk, frontend by Spider-Man, QA/test by Daredevil, UX by
+  Doctor Strange; cross-cutting work additionally by Captain America and
+  Mister Fantastic. Reviewers comment in character, request changes where needed.
+- **Iterate to satisfaction:** requested changes must be addressed — author updates
+  the code, re-pushes, CI re-runs, reviewer re-checks. The loop continues until the
+  reviewer is satisfied. No merge with unresolved "request changes" or open threads.
+- **Generated pre-merge checklist:** a bot posts a checklist on every PR —
+  build green, tests pass, affected §6 criteria verified, design section referenced,
+  no unresolved threads, all department approvals present. Every box must be
+  ticked before merge to `main`.
+- **All-department approval:** merge requires an approving review from **every
+  department** — backend (Hulk), frontend (Spider-Man), QA (Daredevil),
+  UX (Doctor Strange) — plus the team lead (Captain America). PRs touching
+  architecture additionally require senior-panel sign-off (Nick Fury, Professor X,
+  final word Iron Man).
+- **Merge:** squash-merge into `main` only when the checklist is fully green.
+  Merging to `main` triggers the CD deploy to Render.
+- **First implementation step** (after owner sign-off): create the branch
+  protection rule, `.github/pull_request_template.md`, and `.github/workflows/ci.yml`
+  — the process exists before the first line of product code.
+
+## 8. Open questions for the thread
 
 1. Restricted-visa records: excluded at ingestion (current) vs. visible outside the Visa tab with a warning?
 2. `posted_minutes` for unparseable ages: `null` vs. explicit sentinel — either is fine if it sorts oldest and never renders "just now".
