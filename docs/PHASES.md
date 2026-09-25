@@ -7,8 +7,8 @@ previous one is merged.
 | Phase | Scope | Doc | Status |
 |-------|-------|-----|--------|
 | 0 | Process infrastructure: branch protection, PR template, CI, checklist bot, secret/dependency scanning, written process | [PHASE-0.md](PHASE-0.md) | Complete — PR #2 reviewed, awaiting owner's merge approval |
-| 1 | Backend: Spring Boot 3 + Java 21, Kafka consumer (`firstin-ingest`), PostgreSQL schema, ingestion + dedup + pay-parsing API, rate limiting, security headers | PHASE-1.md (to be written) | Planned |
-| 2 | Frontend: React 18 + Vite SPA — Today/C2C/W2/Full-Time/Visa tabs, listing cards, search, honest freshness, all UI-UX.md states | PHASE-2.md (to be written) | Planned |
+| 1 | Backend: Spring Boot 3 + Java 21, Kafka consumer (`firstin-ingest`), PostgreSQL schema, ingestion + dedup + pay-parsing API, rate limiting, security headers | [PHASE-1.md](PHASE-1.md) | Complete — PR #8 merged 2026-09-25 (squash `eac51e3`) |
+| 2 | Frontend: React 18 + Vite SPA — Today/C2C/W2/Full-Time/Visa tabs, listing cards, search, honest freshness, all UI-UX.md states | [PHASE-2.md](PHASE-2.md) | In progress — branch `feat/phase-2-frontend`, design pushed before code |
 | 3 | Integration + deploy: React bundled into the Spring Boot jar, Render free-tier deploy, GitHub Actions daily ingest pipeline (08:05 America/Chicago), DLQ + run history | PHASE-3.md (to be written) | Planned |
 
 ## Rules for every phase document
@@ -26,3 +26,4 @@ previous one is merged.
 - UI/UX: [UI-UX.md](UI-UX.md)
 - Process: [PROCESS.md](PROCESS.md)
 - JobRight research: [RESEARCH-jobright.md](RESEARCH-jobright.md)
+

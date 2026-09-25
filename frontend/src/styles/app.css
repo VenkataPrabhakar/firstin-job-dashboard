@@ -1,0 +1,482 @@
+/* Mobile-first (360px baseline). Base styles target small screens;
+   min-width queries scale up. */
+
+/* ---------- base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--text-m);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------- layout ---------- */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.06);
+}
+
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  padding: var(--space-4) var(--space-3) var(--space-5);
+}
+
+/* ---------- header ---------- */
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.wordmark {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.search-input {
+  width: 100%;
+  font: inherit;
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.search-input::placeholder {
+  color: var(--muted);
+}
+
+.search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.search-clear:hover {
+  background: var(--line);
+}
+
+.today-counter {
+  margin: 0;
+  font-size: var(--text-s);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* ---------- tab bar ---------- */
+.tabbar-nav {
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.tabbar {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--bg);
+}
+
+.tab-active {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ---------- cards ---------- */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.card-title {
+  margin: 0;
+  font-size: var(--text-l);
+  font-weight: 700;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.card-sub {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-m);
+  overflow-wrap: break-word;
+}
+
+.card-pay {
+  margin: var(--space-2) 0 0;
+  font-weight: 700;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--badge-bg);
+  color: var(--badge-ink);
+  font-size: var(--text-s);
+  font-weight: 700;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-new {
+  background: var(--new-bg);
+  flex: 0 0 auto;
+}
+
+.badge-visa {
+  background: var(--visa-bg);
+}
+
+/* Recruiter block: always visible, never behind a click (UI-UX.md §1.2). */
+.recruiter {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-m);
+  overflow-wrap: break-word;
+}
+
+.recruiter-label {
+  font-weight: 700;
+}
+
+.recruiter-missing {
+  color: var(--muted);
+  font-size: var(--text-s);
+}
+
+.card-meta {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-s);
+}
+
+.details-toggle {
+  margin-top: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-s);
+  font-weight: 600;
+}
+
+.details-toggle:hover {
+  background: var(--line);
+}
+
+.sources {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-s);
+  flex-wrap: wrap;
+}
+
+.source-name {
+  color: var(--ink-soft);
+}
+
+.verified {
+  color: var(--visa-bg);
+  font-weight: 700;
+}
+
+.sources-empty {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-s);
+}
+
+/* ---------- states ---------- */
+.results-line {
+  margin: 0 0 var(--space-3);
+  font-weight: 700;
+}
+
+.empty,
+.error {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+
+.empty-message,
+.error-message {
+  margin: 0;
+  font-size: var(--text-l);
+  font-weight: 600;
+}
+
+.empty-updated {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: var(--text-s);
+}
+
+.retry-button {
+  margin-top: var(--space-3);
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+}
+
+.cached-banner {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--banner-bg);
+  color: var(--banner-ink);
+  border: 1px solid var(--banner-line);
+  border-radius: var(--radius);
+  font-size: var(--text-s);
+  font-weight: 600;
+}
+
+/* ---------- skeleton ---------- */
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.skeleton-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.skeleton-line {
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--line) 25%, #f1ece1 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-title {
+  height: 22px;
+  width: 70%;
+}
+
+.skeleton-sub {
+  height: 14px;
+  width: 45%;
+  margin-top: var(--space-2);
+}
+
+.skeleton-pay {
+  height: 16px;
+  width: 55%;
+  margin-top: var(--space-2);
+}
+
+.skeleton-badges {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.skeleton-badge {
+  height: 22px;
+  width: 64px;
+  border-radius: 999px;
+  background: var(--line);
+  animation: shimmer 1.4s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line,
+  .skeleton-badge {
+    animation: none;
+  }
+}
+
+/* ---------- footer ---------- */
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: var(--space-3);
+  background: var(--surface);
+}
+
+.site-footer p {
+  margin: 0 auto;
+  max-width: 100%;
+  font-size: var(--text-s);
+  color: var(--muted);
+}
+
+/* ---------- larger screens ---------- */
+@media (min-width: 640px) {
+  .content,
+  .site-footer p {
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .content {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .site-header {
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .tabbar-nav {
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content,
+  .site-footer p,
+  .site-header,
+  .tabbar-nav {
+    max-width: 860px;
+  }
+
+  .card-title {
+    font-size: 1.25rem;
+  }
+}

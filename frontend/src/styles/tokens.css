@@ -1,0 +1,32 @@
+/* Design tokens — single source of truth for color, spacing, type. */
+:root {
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --ink: #1c1a17;
+  --ink-soft: #3f3a33;
+  --muted: #5f584d;
+  --line: #e4ded1;
+  --link: #0b4fd6;
+  --focus: #0b4fd6;
+
+  --badge-bg: #1c1a17;
+  --badge-ink: #ffffff;
+  --new-bg: #a4261c;
+  --visa-bg: #14532d;
+  --banner-bg: #fff7e0;
+  --banner-ink: #5c4a00;
+  --banner-line: #e8d48a;
+
+  --radius: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --text-s: 0.8125rem;
+  --text-m: 0.9375rem;
+  --text-l: 1.125rem;
+  --text-xl: 1.375rem;
+}

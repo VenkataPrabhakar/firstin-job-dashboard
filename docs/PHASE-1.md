@@ -1,6 +1,6 @@
 # Phase 1 — Backend (Spring Boot API + Kafka ingest)
 
-Status: design approved below; implementation in progress.
+Status: merged to `main` 2026-09-25 (squash `eac51e3`).
 Branch: `feat/phase-1-backend`. Implements `docs/DESIGN.md` §2–§3 (backend-owned parts).
 
 ## Objective
@@ -148,7 +148,7 @@ React frontend (Phase 2) · Render deploy + prod Kafka/Postgres wiring
    `feat/phase-1-backend`.
 2. `./mvnw -B verify` green locally — see evidence below.
 3. PR opened with the template; CI runs; persona review loop; findings fixed.
-4. Owner's explicit merge approval → squash merge. (Pending — not approved.)
+4. Owner's explicit merge approval received 2026-09-25 ("Go head") → squash merge completed as commit `eac51e3`. Feature branch deleted after verification. Phase 1 closed.
 
 ### Implementation evidence (2026-09-25)
 
@@ -199,3 +199,4 @@ React frontend (Phase 2) · Render deploy + prod Kafka/Postgres wiring
   "empty" from "missing".
 - `docs/DESIGN.md` was not otherwise changed; this doc's process section is
   the implementation record.
+
