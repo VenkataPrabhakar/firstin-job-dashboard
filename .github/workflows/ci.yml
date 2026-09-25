@@ -56,14 +56,7 @@ jobs:
           grep -q "## Test evidence" .github/pull_request_template.md
 
       - name: All workflow actions pinned by SHA
-        run: |
-          # Every `uses:` line must reference a 40-hex-char commit SHA, never a tag.
-          # (Comment lines excluded so this check cannot flag its own docs.)
-          if grep -R "uses:" .github/workflows | grep -vE "^[[:space:]]*#" | grep -vE "@[0-9a-f]{40}"; then
-            echo "ERROR: unpinned action found above"
-            exit 1
-          fi
-          echo "all actions SHA-pinned"
+        run: bash .github/scripts/check-pins.sh
 
   backend:
     name: backend build and test
