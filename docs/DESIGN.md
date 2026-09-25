@@ -34,6 +34,7 @@ Morning agents (existing)          Ingest (daily 08:05)              Event backb
 | Database | PostgreSQL on Supabase free tier | Real relational DB, zero cost, zero ops; replaces the flat-JSON idea so history, dedupe and trends are queryable |
 | Frontend | React 18 SPA (Vite), served by Spring Boot | Component-based UI for the tabbed dashboard; the Vite build output is bundled into the Spring Boot jar, so it stays one $0 deployable |
 | Ingestion | Scheduled GitHub Action, daily ~08:05 | Runs after the morning agents finish; reads the 4 agent ledger JSONs and publishes candidate records to Kafka |
+| Pipeline orchestration | GitHub Actions (ADF-style) | Scheduled triggers, sequenced activities, retry policies, run history — the ADF pattern at $0. Real ADF is metered and would break the free constraint |
 | CI/CD | GitHub Actions | On push: Maven build → automated QA acceptance tests (incl. Kafka integration tests) → deploy. Scheduled: daily ingest |
 | Cloud | Render free tier | $0/month; sleeps when idle, wakes in ~30s — fine for a morning-check dashboard |
 
@@ -130,12 +131,18 @@ on: push → build → test → deploy
 Local dev: `npm run dev` (Vite, port 5173) proxies /api → localhost:8080;
 Spring Boot runs the API + Kafka consumer as usual.
 
-on: schedule (daily 08:05) → ingest
-  1. Read the 4 agent ledger JSONs
-  2. Publish candidate records to Kafka topic job-leads.raw (only reported:true)
-  3. Spring consumer: normalize → dedupe → load Postgres; corrupt records →
-     job-leads.dlq with reason, never failing the batch
-  4. Record ingest run in meta table; failures fail loudly, never silently
+on: schedule (daily 08:05) → ingest pipeline (ADF-style)
+  Trigger: cron schedule (like an ADF schedule trigger)
+  Activities (sequenced, each with retry policy):
+    1. Extract — read the 4 agent ledger JSONs
+    2. Validate — keep only reported:true; malformed records → logged, skipped
+    3. Publish — one event per record → Kafka topic job-leads.raw
+    4. Verify — consumer lag + row counts sane; mismatch → fail loudly, never silently
+  Monitor: GitHub Actions run history (like ADF Monitor); failures notify, never silent
+
+  The Spring consumer (always-on in the app) then does: normalize → dedupe →
+  load Postgres; corrupt records → job-leads.dlq with reason, never failing the batch.
+  Ingest runs are recorded in a meta table; idempotent stable IDs make replays safe.
 ```
 
 ## 6. QA acceptance criteria (automated in CI)
