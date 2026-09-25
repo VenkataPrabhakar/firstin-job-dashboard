@@ -163,6 +163,9 @@ on: schedule (daily 08:05) → ingest pipeline (ADF-style)
   feature branches (`feat/...`, `fix/...`, `docs/...`).
 - **Every change is a PR.** Each PR uses the template: what changed, why, which
   design section it implements, which QA criteria it affects, and test evidence.
+- **Design before code:** every user-visible change must implement an approved
+  section of `docs/UI-UX.md`. UI designs are discussed and approved in the thread
+  before the implementation PR is opened — no feature without a design.
 - **CI runs on every PR** (and every push to a PR branch): Maven build → full test
   suite → QA acceptance suite (§6). A red check blocks the merge — no exceptions.
 - **Senior review by field:** every PR is reviewed by the senior of its domain —
