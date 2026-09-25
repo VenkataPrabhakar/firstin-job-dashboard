@@ -187,7 +187,42 @@ on: schedule (daily 08:05) → ingest pipeline (ADF-style)
   protection rule, `.github/pull_request_template.md`, and `.github/workflows/ci.yml`
   — the process exists before the first line of product code.
 
-## 8. Open questions for the thread
+## 9. Security (threat model — binding)
+
+The dashboard is a public read-only app; the threat model is: injection, XSS via
+third-party posting content, secret leakage, abuse of the API, supply-chain
+compromise, and transport/eavesdropping. Mitigations:
+
+- **SQL injection:** JPA/Hibernate only, parameterized queries. No string-concatenated
+  SQL, native or otherwise. Dynamic filters (tab, search) map to criteria queries.
+- **XSS (stored):** listing content comes from external posts. React escapes by
+  default; `dangerouslySetInnerHTML` is banned. Any HTML rendering (if ever needed)
+  goes through a sanitizer. `Content-Security-Policy` header set by the backend.
+- **Info disclosure:** generic error UI ("something went wrong"); stack traces and
+  SQL errors stay server-side in logs only.
+- **CSRF / auth:** the public dashboard needs no login. There are no privileged
+  browser actions. The ingest pipeline is triggered only by the GitHub schedule —
+  no public trigger endpoint exists.
+- **Secrets:** Supabase credentials, Kafka SASL credentials, and the Render deploy
+  hook live in GitHub Secrets and Render environment variables. Never in code,
+  logs, or the repo. CI fails if a secret pattern is detected in a diff.
+- **Transport:** TLS everywhere — HTTPS on Render (HSTS enabled), `sslmode=require`
+  for Postgres, TLS + SASL/SCRAM for Kafka (Upstash enforces TLS).
+- **Least privilege:** the app's Postgres role gets only SELECT/INSERT/UPDATE on
+  app tables — never DDL, never superuser. Kafka credentials are scoped to the
+  `job-leads.*` topics.
+- **Poison pills:** a malformed Kafka record can never crash the consumer loop —
+  it is quarantined to `job-leads.dlq` with the reason (see §5).
+- **Abuse:** rate limiting on `/api/**` (per-IP bucket); search input length-capped
+  and validated with Bean Validation on every endpoint.
+- **Security headers:** CSP, HSTS, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy` — set by Spring Security.
+- **Supply chain:** `package-lock.json` + Maven lockfile committed; GitHub Actions
+  pinned by SHA; Dependabot enabled; `npm audit` and OWASP dependency-check run
+  in CI and fail the build on high/critical CVEs.
+- **Logging:** no secrets, credentials, or raw PII in logs.
+
+## 10. Open questions for the thread
 
 1. Restricted-visa records: excluded at ingestion (current) vs. visible outside the Visa tab with a warning?
 2. `posted_minutes` for unparseable ages: `null` vs. explicit sentinel — either is fine if it sorts oldest and never renders "just now".
