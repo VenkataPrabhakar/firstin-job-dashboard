@@ -1,0 +1,47 @@
+name: pre-merge checklist
+
+# Posts the pre-merge checklist comment on every PR and updates the SAME
+# comment on later pushes (no duplicates).
+# The team lead verifies each box before merge; branch protection blocks
+# merging while review threads are unresolved or CI is red.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
+        id: find
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## Pre-merge checklist (bot-generated)'
+
+      - uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
+        with:
+          comment-id: ${{ steps.find.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## Pre-merge checklist (bot-generated)
+            Verified by the team lead before merge. Do not merge while any box is unchecked.
+            - [ ] Build green (process-validation, security-scan, plus backend/frontend jobs when active)
+            - [ ] Tests passed
+            - [ ] QA criteria verified against docs/DESIGN.md acceptance gates
+            - [ ] Approved design section referenced in the PR description
+            - [ ] No unresolved review threads
+            - [ ] Required department approvals present:
+              - [ ] Backend (Hulk)
+              - [ ] Frontend (Spider-Man)
+              - [ ] QA (Daredevil)
+              - [ ] UX (Doctor Strange)
+              - [ ] Team lead (Captain America)
+            - [ ] Senior panel approval (Mister Fantastic, Nick Fury, Professor X) — required for architecture-impacting PRs
+            - [ ] Final word (Iron Man)
+            - [ ] Squash merge only; merge to main triggers deployment (deploy wiring lands with Phase 1)
+          edit-mode: replace
