@@ -31,14 +31,14 @@ design-before-code).
 │ │ Listing card                            │ │
 │ └─────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────┤
-│ Last pull: <time> · <source note>           │  ← footer
+│ Last updated Sep 25, 2026, 1:24 PM CT · <tab source line> │  ← footer
 └─────────────────────────────────────────────┘
 ```
 
 - **Header (sticky):** wordmark, search box, "Indexed today: N" counter.
 - **Tab bar (sticky, horizontally scrollable on mobile):**
   Today · C2C · W2 · Full-Time · Visa.
-- **Footer:** last pull time + one-line source note.
+- **Footer:** explicit "Last updated <date, time + timezone>" (owner's timezone, America/Chicago) + the current tab's source line.
 
 ## 3. Pages
 
@@ -49,11 +49,13 @@ design-before-code).
 
 ### 3.2 C2C · W2 · Full-Time tabs
 - Same card component, filtered to the engagement type. Newest first.
-- Empty state: "No {type} postings in the last 24h. Last pull: {time}."
+- Empty state: "No {type} postings in the last 24h. Last updated {datetime+tz}."
+- Tab source line: "Aggregated from morning agent sweeps · LinkedIn posts, Google, Dice, Indeed, ZipRecruiter, recruiter emails."
 
 ### 3.3 Visa tab
 - Always visible, even when empty.
-- Empty state: "No visa-friendly postings in the last 24h. Last pull: {time}."
+- Empty state: "No visa-friendly postings in the last 24h. Last updated {datetime+tz}."
+- Tab source line: "Visa-friendly signals from morning agent sweeps · sponsorship keywords verified per posting."
 - Cards here always show the visa shield with its state
   (`confirmed` / `open` / `unknown — ask`).
 
@@ -93,7 +95,7 @@ Rules:
 
 ## 6. States
 - **Loading:** skeleton cards (no layout shift when data arrives).
-- **Empty tab:** message + last pull time (§3).
+- **Empty tab:** message + last-updated datetime (§3).
 - **Error:** generic "Something went wrong. Try again." — details stay
   server-side (§9 of DESIGN.md).
 - **Offline/stale:** if the API is unreachable, show the last successfully
@@ -117,7 +119,7 @@ App
 │       ├── RecruiterBlock
 │       └── SourceLinks
 ├── EmptyState
-└── Footer (last pull time)
+└── Footer (last-updated datetime + tab source line)
 ```
 
 - Data: `fetch('/api/listings?tab={tab}&q={query}')`.
