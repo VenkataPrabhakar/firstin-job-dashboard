@@ -16,8 +16,8 @@ A personal, single-user job-discovery dashboard that collects fresh job leads ev
 Morning agents (existing)          Ingest (daily 08:05)              Event backbone            App
 ┌──────────────┐   JSON ledgers    ┌──────────────────┐   events     ┌──────────────┐   JPA    ┌─────────────────────┐
 │ C2C agent    │ ───────────────▶  │  Ingest producer │ ──────────▶  │    Kafka     │ ───────▶ │  Spring Boot 3      │
-│ W2 agent     │                   │  (GitHub Action  │   topic:     │  (Upstash    │  topic:  │  (Java 21)          │
-│ Full-time    │                   │   on schedule)   │  job-leads   │   free tier) │  consumer│  REST API + React │
+│ W2 agent     │                   │  (GitHub Action  │   topic:     │  (Redpanda   │  topic:  │  (Java 21)          │
+│ Full-time    │                   │   on schedule)   │  job-leads   │  Serverless) │  consumer│  REST API + React │
 │ agent        │                   └──────────────────┘   .raw       └──────────────┘          │  frontend           │
 └──────────────┘                                                    │ corrupt → job-leads.dlq └─────────────────────┘
                                                                     ▼                                  │
@@ -30,7 +30,7 @@ Morning agents (existing)          Ingest (daily 08:05)              Event backb
 | Layer | Choice | Why |
 |---|---|---|
 | Backend | Spring Boot 3 (Java 21) REST API | Owner's own stack; portfolio value; serves the API and the React SPA from one deployable |
-| Event streaming | Apache Kafka via Upstash free tier (local dev: Docker Compose) | Decouples ingest from serving; corrupt records go to a dead-letter topic instead of failing the batch; Kafka + Spring Boot is core to the owner's resume stack |
+| Event streaming | Apache Kafka via Redpanda Cloud Serverless (local dev: Docker Compose) | Decouples ingest from serving; corrupt records go to a dead-letter topic instead of failing the batch; Kafka + Spring Boot is core to the owner's resume stack |
 | Database | PostgreSQL on Supabase free tier | Real relational DB, zero cost, zero ops; replaces the flat-JSON idea so history, dedupe and trends are queryable |
 | Frontend | React 18 SPA (Vite), served by Spring Boot | Component-based UI for the tabbed dashboard; the Vite build output is bundled into the Spring Boot jar, so it stays one $0 deployable |
 | Ingestion | Scheduled GitHub Action, daily ~08:05 | Runs after the morning agents finish; reads the 4 agent ledger JSONs and publishes candidate records to Kafka |
@@ -38,7 +38,7 @@ Morning agents (existing)          Ingest (daily 08:05)              Event backb
 | CI/CD | GitHub Actions | On push: Maven build → automated QA acceptance tests (incl. Kafka integration tests) → deploy. Scheduled: daily ingest |
 | Cloud | Render free tier | $0/month; sleeps when idle, wakes in ~30s — fine for a morning-check dashboard |
 
-**Total running cost: $0/month** (GitHub + Supabase free tier + Upstash Kafka free tier + Render free tier).
+**Total running cost: $0/month while the Redpanda trial credit lasts** (GitHub + Supabase free tier + Redpanda Cloud Serverless $100 trial credit + Render free tier). Redpanda is metered, not a permanent free tier — a cheaper long-term Kafka home is still an open cost decision, and the owner's credit watch tracks burn monthly.
 
 ### Kafka topics
 - `job-leads.raw` — ingest producer publishes one event per candidate record (only `reported:true`).
@@ -211,7 +211,7 @@ compromise, and transport/eavesdropping. Mitigations:
   hook live in GitHub Secrets and Render environment variables. Never in code,
   logs, or the repo. CI fails if a secret pattern is detected in a diff.
 - **Transport:** TLS everywhere — HTTPS on Render (HSTS enabled), `sslmode=require`
-  for Postgres, TLS + SASL/SCRAM for Kafka (Upstash enforces TLS).
+  for Postgres, TLS + SASL/SCRAM for Kafka (Redpanda enforces TLS).
 - **Least privilege:** the app's Postgres role gets only SELECT/INSERT/UPDATE on
   app tables — never DDL, never superuser. Kafka credentials are scoped to the
   `job-leads.*` topics.

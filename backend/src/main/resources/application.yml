@@ -3,9 +3,9 @@
 #
 #   SPRING_DATASOURCE_URL   JDBC URL (prod: Supabase URL, must include ?sslmode=require)
 #   DB_USERNAME / DB_PASSWORD
-#   KAFKA_BOOTSTRAP_SERVERS (prod: Upstash endpoint)
+#   KAFKA_BOOTSTRAP_SERVERS (prod: Redpanda endpoint)
 #   KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD
-#                           (prod: Upstash SCRAM credentials; when set, clients
+#                           (prod: Redpanda SCRAM credentials; when set, clients
 #                           use SASL_SSL — the JAAS config is assembled in code
 #                           so the password never lands in a file or a log)
 #   KAFKA_SASL_MECHANISM    default SCRAM-SHA-256

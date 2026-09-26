@@ -116,7 +116,7 @@ dedupes them into PostgreSQL, and serves the listing API the React frontend
 
 - `backend/docker-compose.yml`: Kafka (KRaft, single node) + PostgreSQL 16.
 - Profiles: `local` (docker-compose defaults), `prod` (env-provided Supabase +
-  Upstash; wired in Phase 3).
+  Redpanda; wired in Phase 3).
 
 ## Test plan (maps to QA criteria)
 
