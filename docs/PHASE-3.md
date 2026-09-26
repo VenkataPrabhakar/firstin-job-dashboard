@@ -1,5 +1,11 @@
 # Phase 3 — Integration + deploy (jar bundling, daily pipeline, Render)
 
+> **Superseded in part by Phase 4 (2026-09-26):** Upstash discontinued Kafka
+> entirely, so the Upstash REST publish path described below was replaced
+> with a Kafka-protocol producer (`confluent-kafka`) publishing to Redpanda
+> Cloud Serverless. See `docs/PHASE-4.md`. The rest of this document stands
+> as the record of what Phase 3 built.
+
 Status: design approved below; implementation in progress.
 Branch: `feat/phase-3-deploy`. Implements `docs/DESIGN.md` §5 (pipeline) and the
 deploy commitments (§2 stack, §7 workflow). Consumes the Phase 1 API and the

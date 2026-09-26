@@ -1,8 +1,8 @@
 name: Daily ingest pipeline
 
 # Phase 3: runs the job-lead pipeline once a day. Extracts the agent ledgers,
-# publishes valid records to Upstash Kafka (topic job-leads.raw, header
-# run_id=<UTC date>), then verifies the consumer stored them.
+# publishes valid records to Redpanda (Kafka protocol, topic job-leads.raw,
+# header run_id=<UTC date>), then verifies the consumer stored them.
 #
 # Schedule: 13:05 UTC daily = 08:05 America/Chicago in summer (CDT, UTC-5),
 # 07:05 in winter (CST, UTC-6). GitHub cron is UTC-fixed and does not shift
@@ -33,9 +33,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  KAFKA_REST_URL: ${{ secrets.KAFKA_REST_URL }}
-  KAFKA_REST_USERNAME: ${{ secrets.KAFKA_REST_USERNAME }}
-  KAFKA_REST_PASSWORD: ${{ secrets.KAFKA_REST_PASSWORD }}
+  KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+  KAFKA_SASL_USERNAME: ${{ secrets.KAFKA_SASL_USERNAME }}
+  KAFKA_SASL_PASSWORD: ${{ secrets.KAFKA_SASL_PASSWORD }}
   SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
   SERVICE_URL: ${{ vars.SERVICE_URL }}
 
@@ -50,7 +50,7 @@ jobs:
       - name: Check pipeline secrets
         id: secrets
         run: |
-          for var in KAFKA_REST_URL KAFKA_REST_USERNAME KAFKA_REST_PASSWORD SUPABASE_DB_URL SERVICE_URL; do
+          for var in KAFKA_BOOTSTRAP_SERVERS KAFKA_SASL_USERNAME KAFKA_SASL_PASSWORD SUPABASE_DB_URL SERVICE_URL; do
             if [ -z "${!var:-}" ]; then
               echo "pipeline not configured — see docs/RENDER.md"
               echo "configured=false" >> "$GITHUB_OUTPUT"
@@ -82,36 +82,19 @@ jobs:
           echo "COUNT_BEFORE=$COUNT_BEFORE" >> "$GITHUB_ENV"
           echo "postings before: $COUNT_BEFORE"
 
-      - name: Publish records to Upstash Kafka REST
+      - name: Install Kafka producer dependency
         if: steps.secrets.outputs.configured == 'true'
-        run: |
-          set -euo pipefail
-          if [ "${{ steps.extract.outputs.published }}" = "0" ]; then
-            echo "no records extracted - skipping publish (run-complete is still sent so the run can complete)"
-            exit 0
-          fi
-          REST="${KAFKA_REST_URL%/}/produce/job-leads.raw"
-          AUTH="$KAFKA_REST_USERNAME:$KAFKA_REST_PASSWORD"
-          # Batch POSTs of up to 100 messages; each message carries the run_id header.
-          jq -c -n --arg run "$RUN_ID" \
-            '[inputs | {value: tojson, headers: [{key: "run_id", value: $run}]}] | _nwise(100)' \
-            records.jsonl \
-          | while IFS= read -r batch; do
-              curl -fsS -u "$AUTH" -H 'Content-Type: application/json' \
-                -d "$batch" "$REST" > /dev/null
-            done
-          echo "batches published"
+        # Exact pin (like the SHA-pinned actions): reproducible CI, no
+        # surprise librdkafka upgrades.
+        run: pip install "confluent-kafka==2.15.1"
 
-      - name: Publish run-complete control record
+      - name: Publish records to Redpanda
         if: steps.secrets.outputs.configured == 'true'
-        run: |
-          set -euo pipefail
-          REST="${KAFKA_REST_URL%/}/produce/job-leads.raw"
-          jq -n -c --arg run "$RUN_ID" \
-            '{value: "run-complete", headers: [{key: "run_id", value: $run}, {key: "run_complete", value: "true"}]}' \
-          | curl -fsS -u "$KAFKA_REST_USERNAME:$KAFKA_REST_PASSWORD" \
-              -H 'Content-Type: application/json' -d @- "$REST" > /dev/null
-          echo "run-complete sent for $RUN_ID"
+        # Each record goes to job-leads.raw with a run_id header, followed by
+        # the run-complete control record (run_id + run_complete=true). The
+        # script sends run-complete even for zero-record runs, and exits
+        # nonzero if any message is undelivered.
+        run: python3 .github/scripts/publish_kafka.py records.jsonl
 
       - name: Wake the Render service
         if: steps.secrets.outputs.configured == 'true'

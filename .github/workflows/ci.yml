@@ -67,6 +67,9 @@ jobs:
       - name: extraction script tests
         run: bash .github/scripts/test_extract.sh
 
+      - name: kafka producer script tests
+        run: bash .github/scripts/test_publish_kafka.sh
+
       - name: ingest schedule still documented
         run: |
           grep -q "cron: '5 13 \* \* \*'" .github/workflows/daily-ingest.yml

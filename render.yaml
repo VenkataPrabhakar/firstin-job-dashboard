@@ -36,4 +36,4 @@ services:
         sync: false
       # KAFKA_SASL_MECHANISM defaults to SCRAM-SHA-256 and the security
       # protocol defaults to SASL_SSL when SASL credentials are set — both
-      # match Upstash, so they are only needed to override the defaults.
+      # match Redpanda, so they are only needed to override the defaults.

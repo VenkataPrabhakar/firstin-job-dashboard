@@ -47,7 +47,7 @@ environment:
 | `SPRING_DATASOURCE_URL` | JDBC URL | `jdbc:postgresql://localhost:5432/firstin` |
 | `DB_USERNAME` / `DB_PASSWORD` | DB credentials | `firstin` / `firstin` |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka brokers | `localhost:9092` |
-| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | SASL/SCRAM credentials (prod/Upstash). When set, clients use `SASL_SSL`; the JAAS config is assembled in code so the password never lands in a file or log. | _(unset — PLAINTEXT)_ |
+| `KAFKA_SASL_USERNAME` / `KAFKA_SASL_PASSWORD` | SASL/SCRAM credentials (prod/Redpanda). When set, clients use `SASL_SSL`; the JAAS config is assembled in code so the password never lands in a file or log. | _(unset — PLAINTEXT)_ |
 | `KAFKA_SASL_MECHANISM` | SASL mechanism | `SCRAM-SHA-256` |
 | `KAFKA_SECURITY_PROTOCOL` | Overrides the default (`SASL_SSL` when SASL is on, `PLAINTEXT` otherwise) | _(unset)_ |
 | `SPRING_PROFILES_ACTIVE` | `local` / `test` / `prod` | _(none)_ |
@@ -59,7 +59,7 @@ Profiles:
 - **`test`** (`application-test.yml`, active in tests) — H2 in-memory,
   embedded Kafka, `ddl-auto: create-drop`.
 - **`prod`** (`application-prod.yml`) — everything from the environment
-  (Supabase Postgres + Upstash Kafka, wired in Phase 3). The prod profile
+  (Supabase Postgres + Redpanda Kafka, wired in Phase 3). The prod profile
   **appends `?sslmode=require` to the JDBC URL in code** when the operator
   did not already request an sslmode — Postgres TLS is enforced, not just
   documented.
@@ -171,4 +171,4 @@ backend/
 
 - Phase 2 (React) consumes `GET /api/listings` exactly as shaped above.
 - Phase 3 (Render deploy) provides the prod env vars (Supabase +
-  Upstash) and the daily ingest scheduler that publishes to `job-leads.raw`.
+  Redpanda) and the daily ingest scheduler that publishes to `job-leads.raw`.
