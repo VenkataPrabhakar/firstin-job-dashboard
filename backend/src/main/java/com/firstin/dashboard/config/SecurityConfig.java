@@ -12,10 +12,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 /**
- * The dashboard API is public and read-only: no login, no sessions, no CSRF
- * surface. Spring Security's job here is the security headers from the
+ * The dashboard (UI + API) is public and read-only: no login, no sessions, no
+ * CSRF surface. Spring Security's job here is the security headers from the
  * threat model (docs/DESIGN.md §9): CSP, HSTS, nosniff, frame deny,
- * referrer policy.
+ * referrer policy. The React SPA bundle (/, /index.html, /assets/**) is
+ * public too — denyAll is the default for everything else.
  */
 @Configuration
 @EnableWebSecurity
@@ -28,6 +29,9 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/**").permitAll()
+                        // Public read-only SPA: entry point plus hashed bundles.
+                        // Everything not listed here stays denied by default.
+                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
                         .anyRequest().denyAll())
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp ->
